@@ -9,29 +9,30 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; background: #121212; color: white; font-family: 'Segoe UI', sans-serif; }
+        body { margin: 0; padding: 0; background: #f4f7f6; color: #333; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
         
-        /* Panel flotante estilo App */
+        /* Panel flotante Modo Claro */
         #info-panel {
             position: absolute;
-            bottom: 20px;
+            bottom: 25px;
             left: 50%;
             transform: translateX(-50%);
             width: 90%;
             max-width: 400px;
-            background: rgba(30, 30, 30, 0.9);
-            padding: 15px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 18px;
             border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
             z-index: 1000;
-            border: 1px solid #333;
-            backdrop-filter: blur(5px);
+            border: 1px solid #ddd;
+            backdrop-filter: blur(10px);
         }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em; }
-        .label { color: #aaa; display: block; font-size: 0.8em; }
-        .value { color: #00e676; font-weight: bold; font-size: 1.1em; }
-        h3 { margin: 0 0 10px 0; font-size: 1.1em; border-bottom: 1px solid #444; padding-bottom: 5px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.95em; }
+        .label { color: #666; display: block; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.5px; }
+        .value { color: #2c3e50; font-weight: bold; font-size: 1.1em; }
+        h3 { margin: 0 0 12px 0; font-size: 1.2em; color: #d35400; border-bottom: 2px solid #eee; padding-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .status-footer { margin-top: 12px; font-size: 0.75em; color: #888; text-align: center; border-top: 1px solid #eee; padding-top: 8px; }
     </style>
 </head>
 <body>
@@ -41,45 +42,58 @@
 <div id="info-panel">
     <h3>🚜 Estado de la Unidad</h3>
     <div class="grid">
-        <div><span class="label">Velocidad</span><span id="vel" class="value">0</span> km/h</div>
+        <div><span class="label">Velocidad</span><span id="vel" class="value">0</span> <small>km/h</small></div>
         <div><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
-        <div><span class="label">Batería Máquina</span><span id="btc" class="value">--</span>V</div>
-        <div><span class="label">Batería GPS</span><span id="btp" class="value">--</span>V</div>
+        <div><span class="label">Batería Máquina</span><span id="btc" class="value">--</span> <small>V</small></div>
+        <div><span class="label">Batería GPS</span><span id="btp" class="value">--</span> <small>V</small></div>
     </div>
-    <div style="margin-top: 10px; font-size: 0.8em; color: #888; text-align: center;">
-        Actualizado: <span id="time">--:--:--</span>
+    <div class="status-footer">
+        Última actualización: <span id="time">--:--:--</span>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Configuración inicial del mapa
+    // Configuración del mapa (Modo Claro - OpenStreetMap Estándar)
     const map = L.map('map', { zoomControl: false }).setView([-8.0942, -79.0101], 16);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map); // Mapa oscuro
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
+    // Marcador de color azul para mejor contraste en mapa claro
     let marker = L.circleMarker([-8.0942, -79.0101], {
-        radius: 10, color: '#00e676', fillColor: '#00e676', fillOpacity: 0.8
+        radius: 10, color: '#2980b9', fillColor: '#3498db', fillOpacity: 0.9
     }).addTo(map);
 
     // Conexión MQTT
     const client = new Paho.MQTT.Client("broker.emqx.io", 8084, "client_" + Math.random().toString(16).slice(2, 8));
 
     client.onMessageArrived = (message) => {
-        const data = JSON.parse(message.payloadString);
-        const pos = [data.lat, data.lon];
+        try {
+            const data = JSON.parse(message.payloadString);
+            const pos = [data.lat, data.lon];
 
-        marker.setLatLng(pos);
-        map.flyTo(pos, 17); // Efecto suave de movimiento
+            marker.setLatLng(pos);
+            map.flyTo(pos, 17); 
 
-        // Actualizar UI
-        document.getElementById('vel').innerText = data.vel;
-        document.getElementById('sat').innerText = data.sat;
-        document.getElementById('btc').innerText = data.btc;
-        document.getElementById('btp').innerText = data.btp;
-        document.getElementById('time').innerText = data.hor;
+            // Actualizar Interfaz
+            document.getElementById('vel').innerText = data.vel;
+            document.getElementById('sat').innerText = data.sat;
+            document.getElementById('btc').innerText = data.btc;
+            document.getElementById('btp').innerText = data.btp;
+            document.getElementById('time').innerText = data.hor;
+        } catch (e) {
+            console.error("Error al procesar JSON:", e);
+        }
     };
 
-    client.connect({ useSSL: true, onSuccess: () => { client.subscribe("GPS-RETRO"); } });
+    client.connect({ 
+        useSSL: true, 
+        onSuccess: () => { 
+            console.log("Conectado exitosamente");
+            client.subscribe("GPS-RETRO"); 
+        } 
+    });
 </script>
 </body>
 </html>
