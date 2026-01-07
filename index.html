@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GPS con Historial</title>
+    <title>GPS Retro con Fecha y Hora</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
@@ -15,13 +15,23 @@
         #info-panel {
             position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%);
             width: 90%; max-width: 400px; background: white;
-            padding: 15px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            padding: 18px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
             z-index: 1000; border: 1px solid #ddd;
         }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .label { color: #666; font-size: 0.8em; display: block; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+        .label { color: #666; font-size: 0.75em; display: block; text-transform: uppercase; }
         .value { font-weight: bold; font-size: 1.1em; color: #2c3e50; }
-        h3 { margin: 0 0 10px 0; color: #d35400; border-bottom: 1px solid #eee; }
+        h3 { margin: 0 0 10px 0; color: #d35400; font-size: 1.2em; border-bottom: 2px solid #f8f9fa; padding-bottom: 5px; }
+        
+        /* Estilo para la fecha y hora */
+        .timestamp-box {
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px dashed #ccd1d1;
+        }
+        .time-now { color: #2980b9; font-weight: bold; font-size: 0.9em; }
     </style>
 </head>
 <body>
@@ -31,10 +41,15 @@
 <div id="info-panel">
     <h3>🚜 Ruta en Tiempo Real</h3>
     <div class="grid">
-        <div><span class="label">Velocidad</span><span id="vel" class="value">0</span> km/h</div>
+        <div><span class="label">Velocidad</span><span id="vel" class="value">0</span> <small>km/h</small></div>
         <div><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
-        <div><span class="label">Batería</span><span id="btc" class="value">--</span> V</div>
+        <div><span class="label">Batería</span><span id="btc" class="value">--</span> <small>V</small></div>
         <div><span class="label">Puntos</span><span id="puntos" class="value">0</span></div>
+    </div>
+    
+    <div class="timestamp-box">
+        <span class="label">Último Reporte</span>
+        <span id="full-date" class="time-now">Esperando datos...</span>
     </div>
 </div>
 
@@ -43,34 +58,36 @@
     const map = L.map('map', { zoomControl: false }).setView([-8.0942, -79.0101], 16);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // 1. Crear el historial (línea azul)
     let rutaCoords = []; 
-    let polyline = L.polyline([], {color: '#3498db', weight: 5, opacity: 0.7}).addTo(map);
+    let polyline = L.polyline([], {color: '#2980b9', weight: 5, opacity: 0.7}).addTo(map);
 
-    // 2. Marcador actual
     let marker = L.circleMarker([-8.0942, -79.0101], {
-        radius: 8, color: '#e67e22', fillColor: '#d35400', fillOpacity: 1
+        radius: 9, color: '#ffffff', weight: 2, fillColor: '#d35400', fillOpacity: 1
     }).addTo(map);
 
     const client = new Paho.MQTT.Client("broker.emqx.io", 8084, "client_" + Math.random().toString(16).slice(2, 8));
 
     client.onMessageArrived = (message) => {
-        const data = JSON.parse(message.payloadString);
-        const nuevaPos = [data.lat, data.lon];
+        try {
+            const data = JSON.parse(message.payloadString);
+            const nuevaPos = [data.lat, data.lon];
 
-        // Actualizar marcador
-        marker.setLatLng(nuevaPos);
-        map.panTo(nuevaPos);
+            marker.setLatLng(nuevaPos);
+            map.panTo(nuevaPos);
 
-        // AGREGAR AL HISTORIAL
-        rutaCoords.push(nuevaPos); // Guardar coordenada
-        polyline.setLatLngs(rutaCoords); // Dibujar línea actualizada
+            rutaCoords.push(nuevaPos);
+            polyline.setLatLngs(rutaCoords);
 
-        // Actualizar UI
-        document.getElementById('vel').innerText = data.vel;
-        document.getElementById('sat').innerText = data.sat;
-        document.getElementById('btc').innerText = data.btc;
-        document.getElementById('puntos').innerText = rutaCoords.length;
+            // Actualizar Interfaz con Fecha y Hora
+            document.getElementById('vel').innerText = data.vel;
+            document.getElementById('sat').innerText = data.sat;
+            document.getElementById('btc').innerText = data.btc;
+            document.getElementById('puntos').innerText = rutaCoords.length;
+            
+            // Combinamos Fecha y Hora del JSON
+            document.getElementById('full-date').innerText = data.fec + " | " + data.hor;
+            
+        } catch (e) { console.error("Error:", e); }
     };
 
     client.connect({ useSSL: true, onSuccess: () => { client.subscribe("GPS-RETRO"); } });
