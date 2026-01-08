@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GPS Retro - Marcadores de Ruta</title>
+    <title>GPS Retro - Telemetría Completa</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
@@ -13,18 +13,28 @@
         #map { height: 100vh; width: 100vw; z-index: 1; }
         
         #info-panel {
-            position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 400px; background: white;
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 92%; max-width: 420px; background: white;
             padding: 15px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
             z-index: 1000; border: 1px solid #ddd;
         }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
-        .label { color: #666; font-size: 0.75em; display: block; text-transform: uppercase; }
-        .value { font-weight: bold; font-size: 1.1em; color: #2c3e50; }
-        h3 { margin: 0 0 10px 0; color: #d35400; font-size: 1.1em; border-bottom: 2px solid #f8f9fa; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .label { color: #666; font-size: 0.65em; display: block; text-transform: uppercase; font-weight: bold; }
+        .value { font-weight: bold; font-size: 1em; color: #2c3e50; }
+        h3 { margin: 0 0 10px 0; color: #d35400; font-size: 1.1em; border-bottom: 2px solid #f8f9fa; display: flex; justify-content: space-between; }
         
-        .timestamp-box { background: #f8f9fa; padding: 8px; border-radius: 8px; text-align: center; border: 1px dashed #ccd1d1; }
+        .timestamp-box { 
+            background: #f8f9fa; 
+            padding: 8px; 
+            border-radius: 8px; 
+            text-align: center; 
+            border: 1px dashed #ccd1d1;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
         .time-now { color: #2980b9; font-weight: bold; font-size: 0.85em; }
+        .small-txt { font-size: 0.8em; color: #7f8c8d; }
     </style>
 </head>
 <body>
@@ -32,16 +42,24 @@
 <div id="map"></div>
 
 <div id="info-panel">
-    <h3>🚜 Seguimiento con Puntos</h3>
+    <h3><span>🚜 GPS Retro</span> <span id="puntos" class="small-txt" style="font-weight:normal">Pts: 0</span></h3>
+    
     <div class="grid">
         <div><span class="label">Velocidad</span><span id="vel" class="value">0</span> <small>km/h</small></div>
         <div><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
-        <div><span class="label">Batería</span><span id="btc" class="value">--</span> <small>V</small></div>
-        <div><span class="label">Puntos</span><span id="puntos" class="value">0</span></div>
+        <div><span class="label">Batería GPS</span><span id="btp" class="value">--</span> <small>V</small></div>
+        
+        <div><span class="label">Batería Carro</span><span id="btc" class="value">--</span> <small>V</small></div>
+        <div style="grid-column: span 2;">
+            <span class="label">Ubicación Actual</span>
+            <span id="coords-text" class="small-txt">Esperando...</span>
+        </div>
     </div>
     
     <div class="timestamp-box">
-        <span id="full-date" class="time-now">Esperando reporte...</span>
+        <div><span class="label">Fecha</span><span id="fec-val" class="time-now">--/--/--</span></div>
+        <div style="border-left: 1px solid #ddd; height: 20px;"></div>
+        <div><span class="label">Hora</span><span id="hor-val" class="time-now">--:--:--</span></div>
     </div>
 </div>
 
@@ -53,7 +71,6 @@
     let rutaCoords = []; 
     let polyline = L.polyline([], {color: '#2980b9', weight: 3, opacity: 0.5}).addTo(map);
 
-    // Marcador principal (el que se mueve)
     let currentMarker = L.circleMarker([-8.0942, -79.0101], {
         radius: 10, color: '#ffffff', weight: 3, fillColor: '#d35400', fillOpacity: 1, zIndexOffset: 1000
     }).addTo(map);
@@ -65,31 +82,34 @@
             const data = JSON.parse(message.payloadString);
             const nuevaPos = [data.lat, data.lon];
 
-            // 1. DEJAR UNA MARCA (Puntito pequeño) en la posición recibida
+            // 1. Dejar marca en el mapa
             L.circleMarker(nuevaPos, {
-                radius: 4, 
-                color: '#2980b9', 
-                fillColor: '#3498db', 
-                fillOpacity: 0.8,
-                weight: 1
+                radius: 4, color: '#2980b9', fillColor: '#3498db', fillOpacity: 0.8, weight: 1
             })
             .addTo(map)
-            .bindPopup(`<b>Hora:</b> ${data.hor}<br><b>Vel:</b> ${data.vel} km/h`); // Al tocar el punto verás la hora
+            .bindPopup(`<b>Hora:</b> ${data.hor}<br><b>BTC:</b> ${data.btc}V<br><b>BTP:</b> ${data.btp}V`);
 
-            // 2. Actualizar marcador actual y línea
+            // 2. Actualizar marcador y línea
             currentMarker.setLatLng(nuevaPos);
             map.panTo(nuevaPos);
             rutaCoords.push(nuevaPos);
             polyline.setLatLngs(rutaCoords);
 
-            // 3. Actualizar Interfaz
+            // 3. Actualizar Interfaz con los nuevos campos
             document.getElementById('vel').innerText = data.vel;
             document.getElementById('sat').innerText = data.sat;
             document.getElementById('btc').innerText = data.btc;
-            document.getElementById('puntos').innerText = rutaCoords.length;
-            document.getElementById('full-date').innerText = data.fec + " | " + data.hor;
+            document.getElementById('btp').innerText = data.btp; // Batería Dispositivo
+            document.getElementById('puntos').innerText = "Pts: " + rutaCoords.length;
             
-        } catch (e) { console.error("Error:", e); }
+            // Fecha y Hora separadas para mejor vista
+            document.getElementById('fec-val').innerText = data.fec;
+            document.getElementById('hor-val').innerText = data.hor;
+            
+            // Coordenadas en texto pequeño
+            document.getElementById('coords-text').innerText = data.lat.toFixed(4) + ", " + data.lon.toFixed(4);
+            
+        } catch (e) { console.error("Error al procesar mensaje:", e); }
     };
 
     client.connect({ useSSL: true, onSuccess: () => { client.subscribe("GPS-RETRO"); } });
