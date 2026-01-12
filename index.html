@@ -3,135 +3,228 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GPS Retro - Telemetría Multi-Unidad</title>
+    <title>GPS Flota - Telemetría Completa</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; background: #f4f7f6; font-family: sans-serif; }
+        body { margin: 0; padding: 0; background: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
         
+        /* Botón de Menú */
+        #menu-toggle {
+            position: absolute; top: 15px; right: 15px;
+            width: 45px; height: 45px; background: #e67e22;
+            color: white; border-radius: 12px; display: flex;
+            justify-content: center; align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 1002; cursor: pointer; font-size: 22px; transition: 0.3s;
+        }
+        #menu-toggle:hover { background: #d35400; transform: scale(1.05); }
+
+        /* Menú Desplegable */
+        #filter-menu {
+            position: absolute; top: 70px; right: 15px;
+            width: 240px; background: white;
+            padding: 15px; border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            z-index: 1001; display: none;
+            max-height: 50vh; overflow-y: auto; border: 1px solid #ddd;
+        }
+        .filter-header { font-weight: bold; margin-bottom: 12px; color: #2c3e50; border-bottom: 2px solid #e67e22; padding-bottom: 5px; }
+        .filter-item { display: flex; align-items: center; margin-bottom: 10px; font-size: 0.9em; font-weight: 500; }
+        .filter-item input { width: 18px; height: 18px; margin-right: 12px; accent-color: #e67e22; cursor: pointer; }
+
+        /* Panel de Información Completo */
         #info-panel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 92%; max-width: 420px; background: white;
-            padding: 15px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            z-index: 1000; border: 1px solid #ddd;
+            width: 94%; max-width: 450px; background: white;
+            padding: 18px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 1000;
         }
-        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .label { color: #666; font-size: 0.65em; display: block; text-transform: uppercase; font-weight: bold; }
-        .value { font-weight: bold; font-size: 1em; color: #2c3e50; }
-        h3 { margin: 0 0 10px 0; color: #d35400; font-size: 1.1em; border-bottom: 2px solid #f8f9fa; display: flex; justify-content: space-between; align-items: center; }
-        
-        .timestamp-box { 
-            background: #f8f9fa; 
-            padding: 8px; 
-            border-radius: 8px; 
-            text-align: center; 
-            border: 1px dashed #ccd1d1;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-        }
-        .time-now { color: #2980b9; font-weight: bold; font-size: 0.85em; }
-        .small-txt { font-size: 0.8em; color: #7f8c8d; }
-        
-        /* Estilo para el ID de la unidad en el título */
-        .id-badge { background: #d35400; color: white; padding: 2px 8px; border-radius: 5px; font-size: 0.8em; }
+        .header-panel { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .unit-title { display: flex; align-items: center; font-size: 1.2em; font-weight: bold; color: #2c3e50; }
+        #color-indicator { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; border: 2px solid #fff; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
+
+        .grid-data { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        .box { background: #f8f9fa; padding: 8px; border-radius: 10px; border: 1px solid #edf0f2; }
+        .label { color: #8a959e; font-size: 0.65em; text-transform: uppercase; font-weight: 800; display: block; margin-bottom: 2px; }
+        .value { font-weight: 700; font-size: 1.05em; color: #2c3e50; }
+        .sub-val { font-size: 0.8em; color: #7f8c8d; font-weight: normal; }
+
+        .footer-data { margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .status-badge { font-size: 0.7em; background: #e67e22; color: white; padding: 3px 10px; border-radius: 20px; font-weight: bold; }
+        .coords-box { font-family: monospace; font-size: 0.85em; color: #34495e; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 
-<div id="info-panel">
-    <h3>
-        <span>🚜 <span id="nombre-id">Esperando...</span></span> 
-        <span id="puntos" class="small-txt" style="font-weight:normal">Pts: 0</span>
-    </h3>
-    
-    <div class="grid">
-        <div><span class="label">Velocidad</span><span id="vel" class="value">0</span> <small>km/h</small></div>
-        <div><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
-        <div><span class="label">Batería GPS</span><span id="btp" class="value">--</span> <small>V</small></div>
-        
-        <div><span class="label">Batería Carro</span><span id="btc" class="value">--</span> <small>V</small></div>
-        <div style="grid-column: span 2;">
-            <span class="label">Ubicación Actual</span>
-            <span id="coords-text" class="small-txt">Esperando datos...</span>
-        </div>
+<div id="menu-toggle" onclick="toggleMenu()">☰</div>
+
+<div id="filter-menu">
+    <div class="filter-header">Control de Flota</div>
+    <div class="filter-item">
+        <input type="checkbox" id="check-all" checked> <strong>MOSTRAR TODAS</strong>
     </div>
-    
-    <div class="timestamp-box">
-        <div><span class="label">Fecha</span><span id="fec-val" class="time-now">--/--/--</span></div>
-        <div style="border-left: 1px solid #ddd; height: 20px;"></div>
-        <div><span class="label">Hora</span><span id="hor-val" class="time-now">--:--:--</span></div>
+    <div id="lista-vehiculos"></div>
+</div>
+
+<div id="info-panel">
+    <div class="header-panel">
+        <div class="unit-title">
+            <span id="color-indicator"></span> 
+            <span id="nombre-id">Buscando...</span>
+        </div>
+        <div id="status-flota" class="status-badge">Sincronizando</div>
+    </div>
+
+    <div class="grid-data">
+        <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span> <span class="sub-val">km/h</span></div>
+        <div class="box"><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
+        <div class="box"><span class="label">Puntos Hoy</span><span id="puntos" class="value">0</span></div>
+        
+        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span> <span class="sub-val">V</span></div>
+        <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span> <span class="sub-val">V</span></div>
+        <div class="box"><span class="label">Hora</span><span id="hor-val" class="value">--:--</span></div>
+    </div>
+
+    <div class="footer-data">
+        <div class="coords-box">
+            <span class="label">Ubicación (Lat, Lon)</span>
+            <span id="coords-text">0.00000, 0.00000</span>
+        </div>
+        <div style="text-align: right;">
+            <span class="label">Fecha</span>
+            <span id="fec-val" style="font-weight: bold; color: #2c3e50; font-size: 0.9em;">--/--/----</span>
+        </div>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map', { zoomControl: false }).setView([-8.0942, -79.0101], 16);
+    const map = L.map('map', { zoomControl: false }).setView([-8.0942, -79.0101], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Objeto para almacenar todas las unidades por su ID
     let flota = {};
+    let seleccionados = new Set();
 
-    // Función para asignar colores automáticos por ID
+    function toggleMenu() {
+        const menu = document.getElementById('filter-menu');
+        menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+    }
+
     function colorPorId(id) {
-        const colores = ['#d35400', '#2980b9', '#27ae60', '#8e44ad', '#f39c12', '#c0392b'];
+        const colores = ['#e67e22', '#9b59b6', '#2ecc71', '#3498db', '#f1c40f', '#e74c3c', '#1abc9c'];
         let hash = 0;
         for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
         return colores[Math.abs(hash) % colores.length];
     }
 
-    const client = new Paho.MQTT.Client("broker.emqx.io", 8084, "client_" + Math.random().toString(16).slice(2, 8));
+    const client = new Paho.MQTT.Client("broker.emqx.io", 8084, "web_full_" + Math.random().toString(16).slice(2, 5));
 
     client.onMessageArrived = (message) => {
         try {
             const data = JSON.parse(message.payloadString);
-            const id = data.id || "S-ID"; // Si no hay ID, pone "S-ID"
-            const nuevaPos = [data.lat, data.lon];
+            const id = data.id || "S-ID";
             const colorActual = colorPorId(id);
+            const pos = [parseFloat(data.lat), parseFloat(data.lon)];
 
-            // 1. SI LA UNIDAD ES NUEVA, LA CREAMOS EN EL MAPA
             if (!flota[id]) {
                 flota[id] = {
-                    marker: L.circleMarker(nuevaPos, {
-                        radius: 10, color: '#ffffff', weight: 3, fillColor: colorActual, fillOpacity: 1, zIndexOffset: 1000
-                    }).addTo(map),
-                    polyline: L.polyline([], {color: colorActual, weight: 3, opacity: 0.5}).addTo(map),
-                    rutaCoords: []
+                    marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: colorActual, fillOpacity: 1 }),
+                    polyline: L.polyline([], {color: colorActual, weight: 3, opacity: 0.6}),
+                    puntosGroup: L.layerGroup(),
+                    rutaCoords: [],
+                    ultimoDato: data
                 };
-                flota[id].marker.bindPopup(`<b>Unidad: ${id}</b>`);
+                seleccionados.add(id);
+                agregarAMenuLateral(id);
+                flota[id].marker.addTo(map);
+                flota[id].polyline.addTo(map);
+                flota[id].puntosGroup.addTo(map);
             }
 
-            // 2. ACTUALIZAR RASTRO Y POSICIÓN DE LA UNIDAD ESPECÍFICA
-            flota[id].marker.setLatLng(nuevaPos);
-            flota[id].rutaCoords.push(nuevaPos);
+            // Actualizar memoria
+            flota[id].marker.setLatLng(pos);
+            flota[id].rutaCoords.push(pos);
             flota[id].polyline.setLatLngs(flota[id].rutaCoords);
+            flota[id].ultimoDato = data;
+            L.circleMarker(pos, { radius: 3, color: colorActual, opacity: 0.3, stroke: false }).addTo(flota[id].puntosGroup);
 
-            // 3. DEJAR MARCA HISTÓRICA (Punto pequeño)
-            L.circleMarker(nuevaPos, {
-                radius: 4, color: colorActual, fillColor: colorActual, fillOpacity: 0.4, weight: 1
-            })
-            .addTo(map)
-            .bindPopup(`<b>Unidad:</b> ${id}<br><b>Hora:</b> ${data.hor}<br><b>BTP:</b> ${data.btp}V`);
-
-            // 4. ACTUALIZAR INTERFAZ (Se muestra la info de la última unidad que reportó)
-            map.panTo(nuevaPos);
-            document.getElementById('nombre-id').innerText = id;
-            document.getElementById('vel').innerText = data.vel;
-            document.getElementById('sat').innerText = data.sat;
-            document.getElementById('btc').innerText = data.btc;
-            document.getElementById('btp').innerText = data.btp;
-            document.getElementById('puntos').innerText = "Pts: " + flota[id].rutaCoords.length;
-            document.getElementById('fec-val').innerText = data.fec;
-            document.getElementById('hor-val').innerText = data.hor;
-            document.getElementById('coords-text').innerText = data.lat.toFixed(4) + ", " + data.lon.toFixed(4);
-
-        } catch (e) { console.error("Error al procesar mensaje:", e); }
+            // Actualizar Interfaz si está seleccionado
+            if (seleccionados.has(id)) {
+                actualizarUI(data, colorActual);
+            }
+        } catch (e) { console.error("Error datos:", e); }
     };
+
+    function agregarAMenuLateral(id) {
+        const cont = document.getElementById('lista-vehiculos');
+        const d = document.createElement('div');
+        d.className = 'filter-item';
+        d.innerHTML = `<input type="checkbox" class="car-check" data-id="${id}" checked> ${id}`;
+        d.querySelector('input').addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            if (isChecked) {
+                seleccionados.add(id);
+                flota[id].marker.addTo(map);
+                flota[id].polyline.addTo(map);
+                flota[id].puntosGroup.addTo(map);
+                actualizarUI(flota[id].ultimoDato, colorPorId(id));
+                map.panTo(flota[id].marker.getLatLng());
+            } else {
+                seleccionados.delete(id);
+                map.removeLayer(flota[id].marker);
+                map.removeLayer(flota[id].polyline);
+                map.removeLayer(flota[id].puntosGroup);
+            }
+            actualizarTextoEstado();
+        });
+        cont.appendChild(d);
+    }
+
+    function actualizarUI(data, color) {
+        document.getElementById('color-indicator').style.background = color;
+        document.getElementById('nombre-id').innerText = (seleccionados.size === 1) ? data.id : "Vista General";
+        
+        // Carga de todos los campos solicitados
+        document.getElementById('vel').innerText = data.vel || "0";
+        document.getElementById('sat').innerText = data.sat || "0";
+        document.getElementById('btc').innerText = data.btc || "--";
+        document.getElementById('btp').innerText = data.btp || "--";
+        document.getElementById('fec-val').innerText = data.fec || "--/--/--";
+        document.getElementById('hor-val').innerText = data.hor || "--:--:--";
+        document.getElementById('coords-text').innerText = parseFloat(data.lat).toFixed(6) + ", " + parseFloat(data.lon).toFixed(6);
+        document.getElementById('puntos').innerText = flota[data.id].rutaCoords.length;
+        
+        actualizarTextoEstado();
+    }
+
+    function actualizarTextoEstado() {
+        const badge = document.getElementById('status-flota');
+        const t = Object.keys(flota).length;
+        const s = seleccionados.size;
+
+        if (s === t && t > 0) {
+            badge.innerText = "FLOTA COMPLETA (" + t + ")";
+            badge.style.background = "#2ecc71";
+        } else {
+            badge.innerText = "VIENDO " + s + " DE " + t;
+            badge.style.background = "#e67e22";
+        }
+    }
+
+    document.getElementById('check-all').addEventListener('change', (e) => {
+        document.querySelectorAll('.car-check').forEach(c => {
+            if (c.checked !== e.target.checked) {
+                c.checked = e.target.checked;
+                c.dispatchEvent(new Event('change'));
+            }
+        });
+    });
 
     client.connect({ useSSL: true, onSuccess: () => { client.subscribe("GPS-RETRO"); } });
 </script>
