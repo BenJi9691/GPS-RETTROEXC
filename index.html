@@ -3,36 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GPS BenJi - 100% Funcional</title>
+    <title>BenJi GPS - Sistema Total</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; z-index: 1; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; }
         
-        /* Menú Lateral */
-        #menu-toggle { position: absolute; top: 15px; right: 15px; width: 45px; height: 45px; background: #e67e22; color: white; border-radius: 12px; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1002; cursor: pointer; }
-        #filter-menu { position: absolute; top: 70px; right: 15px; width: 260px; background: white; padding: 15px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); z-index: 1001; display: none; max-height: 70vh; overflow-y: auto; }
+        /* MENÚ LATERAL MEJORADO */
+        #menu-toggle { position: absolute; top: 15px; right: 15px; width: 45px; height: 45px; background: #e67e22; color: white; border-radius: 12px; display: flex; justify-content: center; align-items: center; z-index: 1002; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        #filter-menu { position: absolute; top: 70px; right: 15px; width: 250px; background: white; padding: 15px; border-radius: 15px; z-index: 1001; display: none; box-shadow: 0 5px 25px rgba(0,0,0,0.2); }
 
-        .section-title { font-weight: bold; margin: 15px 0 8px 0; color: #2c3e50; border-bottom: 2px solid #e67e22; font-size: 0.85em; }
-        .mode-switch { display: flex; background: #f0f0f0; padding: 4px; border-radius: 8px; margin-bottom: 10px; }
-        .mode-btn { flex: 1; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.75em; font-weight: bold; }
-        .mode-btn.active { background: #e67e22; color: white; }
-
-        .filter-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.85em; font-weight: 600; cursor: pointer; }
+        .section-title { font-weight: 800; font-size: 0.75em; color: #7f8c8d; text-transform: uppercase; margin-bottom: 10px; border-bottom: 2px solid #f39c12; }
+        
+        /* BOTÓN TODAS DESTACADO */
+        #all-selector { background: #fff4e5; padding: 8px; border-radius: 8px; margin-bottom: 10px; display: flex; align-items: center; border: 1px solid #ffcc80; }
+        .filter-item { display: flex; align-items: center; padding: 5px 0; font-size: 0.9em; font-weight: 600; }
         .filter-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: #e67e22; }
 
-        /* Panel de Información - FECHA Y HORA DESTACADAS */
-        #info-panel { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 94%; max-width: 500px; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1000; }
-        .grid-data { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .box { background: #f8f9fa; padding: 6px 8px; border-radius: 10px; border: 1px solid #edf0f2; }
-        .label { color: #8a959e; font-size: 0.55em; text-transform: uppercase; font-weight: 800; display: block; }
-        .value { font-weight: 700; font-size: 0.85em; color: #2c3e50; }
-        .status-badge { font-size: 0.65em; background: #2ecc71; color: white; padding: 2px 8px; border-radius: 20px; font-weight: bold; }
+        /* PANEL DE INFO CON FECHA */
+        #info-panel { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 480px; background: white; padding: 15px; border-radius: 20px; z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .grid-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+        .box { background: #f8f9fa; padding: 8px; border-radius: 12px; border: 1px solid #eee; text-align: center; }
+        .box.highlight { background: #fff9c4; border: 1px solid #fbc02d; } /* Resaltado para fecha/hora */
+        .label { display: block; font-size: 0.55em; color: #95a5a6; font-weight: 800; text-transform: uppercase; }
+        .value { font-size: 0.9em; font-weight: 700; color: #2c3e50; }
+        .status { font-size: 0.6em; background: #2ecc71; color: white; padding: 3px 10px; border-radius: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -41,55 +40,47 @@
 <div id="menu-toggle" onclick="toggleMenu()">☰</div>
 
 <div id="filter-menu">
-    <div class="section-title">MODO DE VISTA</div>
-    <div class="mode-switch">
-        <button id="btn-rt" class="mode-btn active" onclick="cambiarModo('rt')">TIEMPO REAL</button>
-        <button id="btn-hist" class="mode-btn" onclick="cambiarModo('hist')">HISTORIAL</button>
-    </div>
-    
-    <div class="section-title">SELECCIÓN</div>
-    <div class="filter-item" style="background: #fff4eb; padding: 5px; border-radius: 5px;">
-        <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)"> 
-        <span style="color:#e67e22; font-weight: 800;">MOSTRAR TODAS</span>
+    <div class="section-title">Control de Flota</div>
+    <div id="all-selector">
+        <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)">
+        <span style="font-weight: 800; color: #d35400;">SELECCIONAR TODAS</span>
     </div>
     <div id="lista-vehiculos"></div>
-
-    <div id="hist-controls" style="display:none; margin-top:15px;">
-        <div class="section-title">FECHA</div>
-        <input type="date" id="input-fecha" style="width:100%" onchange="cargarDatosHistorial()">
-    </div>
 </div>
 
 <div id="info-panel">
-    <div style="display:flex; justify-content:space-between; margin-bottom: 10px; align-items: center;">
-        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid white;"></span> <span id="nombre-id">Sincronizando...</span></div>
-        <div id="status-flota" class="status-badge">ONLINE</div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <span id="color-indicator" style="display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:5px;"></span>
+            <span id="nombre-id" style="font-weight:800; font-size:1.1em;">Esperando unidad...</span>
+        </div>
+        <span class="status">ONLINE</span>
     </div>
-    <div class="grid-data">
-        <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span> km/h</div>
-        <div class="box" style="background: #fffde7; border: 1px solid #fbc02d;"><span class="label">Fecha</span><span id="fec-val" class="value">--/--/--</span></div>
-        <div class="box" style="background: #fffde7; border: 1px solid #fbc02d;"><span class="label">Hora</span><span id="hor-val" class="value">--:--:--</span></div>
-        <div class="box"><span class="label">Batería GPS</span><span id="btp" class="value">--</span> V</div>
-        <div class="box"><span class="label">Batería Carro</span><span id="btc" class="value">--</span> V</div>
-        <div class="box"><span class="label">Puntos Hoy</span><span id="puntos" class="value">0</span></div>
+
+    <div class="grid-info">
+        <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span><small> km/h</small></div>
+        <div class="box highlight"><span class="label">Fecha</span><span id="fec-val" class="value">--/--/--</span></div>
+        <div class="box highlight"><span class="label">Hora</span><span id="hor-val" class="value">--:--:--</span></div>
+        <div class="box"><span class="label">Batería Carro</span><span id="btc" class="value">--</span><small>V</small></div>
+        <div class="box"><span class="label">Batería GPS</span><span id="btp" class="value">--</span><small>V</small></div>
+        <div class="box"><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
     </div>
-    <div style="margin-top: 10px; font-size: 0.8em;">
-        <span class="label">Dirección</span>
-        <div id="direccion" style="font-weight: 600; color: #34495e;">Buscando...</div>
+    
+    <div style="margin-top:10px; border-top:1px solid #eee; padding-top:10px;">
+        <span class="label">Ubicación Actual</span>
+        <div id="direccion" style="font-size:0.8em; color:#34495e; font-weight:600;">Cargando dirección...</div>
     </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     const firebaseConfig = { databaseURL: "https://gps-retroexc-default-rtdb.firebaseio.com" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const map = L.map('map', { zoomControl: false }).setView([-8.0942, -79.0101], 14);
+    const map = L.map('map', { zoomControl: false }).setView([-8.11, -79.02], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     let flota = {};
-    let modoActual = 'rt';
     let unidadEnFoco = null;
 
     function toggleMenu() {
@@ -97,137 +88,84 @@
         m.style.display = (m.style.display === 'block') ? 'none' : 'block';
     }
 
-    function colorPorId(id) {
-        const colores = ['#e67e22', '#9b59b6', '#2ecc71', '#3498db', '#f1c40f', '#e74c3c'];
-        let hash = 0;
-        for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
-        return colores[Math.abs(hash) % colores.length];
-    }
-
-    // ACTUALIZACIÓN TIEMPO REAL SIN CLIC
-    function escucharRT() {
-        db.ref('ultimo_estado').on('child_changed', (snapshot) => {
-            const data = snapshot.val();
-            actualizarPosicion(data, false);
-            if (unidadEnFoco === data.id) {
-                actualizarUI(data);
-                map.panTo([parseFloat(data.lat), parseFloat(data.lon)]);
-            }
-        });
-        db.ref('ultimo_estado').on('child_added', (snapshot) => {
-            actualizarPosicion(snapshot.val(), false);
-        });
-    }
-
-    function actualizarPosicion(data, esPrecarga) {
-        const id = data.id;
-        const pos = [parseFloat(data.lat), parseFloat(data.lon)];
-        const color = colorPorId(id);
-
-        if (!flota[id]) {
-            flota[id] = { 
-                coords: [], 
-                marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(map),
-                polyline: L.polyline([], {color: color, weight: 3, opacity: 0.7}).addTo(map),
-                puntosGroup: L.layerGroup().addTo(map)
-            };
-            crearItemLista(id);
-        }
-
-        // El punto rojo siempre se mueve a la coordenada más nueva
-        if (!esPrecarga) {
-            flota[id].marker.setLatLng(pos).bringToFront();
-        }
-
-        const ult = flota[id].coords[flota[id].coords.length - 1];
-        if (!ult || ult[0] !== pos[0] || ult[1] !== pos[1]) {
-            flota[id].coords.push(pos);
-            flota[id].polyline.setLatLngs(flota[id].coords);
-            L.circleMarker(pos, { radius: 2, color: color, stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
-        }
-    }
-
-    function crearItemLista(id) {
-        const container = document.getElementById('lista-vehiculos');
-        if (document.getElementById(`item-${id}`)) return;
-
-        const div = document.createElement('div');
-        div.className = 'filter-item';
-        div.id = `item-${id}`;
-        div.innerHTML = `<input type="checkbox" checked class="chk-unidad" data-id="${id}"> <span onclick="enfocarUnidad('${id}')">${id}</span>`;
-        
-        div.querySelector('input').onchange = (e) => {
-            const idU = e.target.getAttribute('data-id');
-            if (e.target.checked) { 
-                flota[idU].marker.addTo(map); flota[idU].polyline.addTo(map); flota[idU].puntosGroup.addTo(map); 
-            } else { 
-                map.removeLayer(flota[idU].marker); map.removeLayer(flota[idU].polyline); map.removeLayer(flota[idU].puntosGroup); 
-            }
-        };
-        container.appendChild(div);
-    }
-
-    // FUNCIÓN TODAS LAS UNIDADES
+    // Lógica para el botón TODAS
     function toggleAll(estado) {
         const checks = document.querySelectorAll('.chk-unidad');
         checks.forEach(c => {
             if (c.checked !== estado) {
                 c.checked = estado;
-                c.dispatchEvent(new Event('change'));
+                actualizarVisibilidad(c.dataset.id, estado);
             }
         });
     }
 
-    async function enfocarUnidad(id) {
-        unidadEnFoco = id;
-        map.flyTo(flota[id].marker.getLatLng(), 16);
-        db.ref(`ultimo_estado/${id}`).once('value', (s) => { if (s.exists()) actualizarUI(s.val()); });
+    function actualizarVisibilidad(id, visible) {
+        if (visible) {
+            flota[id].marker.addTo(map);
+            flota[id].polyline.addTo(map);
+        } else {
+            map.removeLayer(flota[id].marker);
+            map.removeLayer(flota[id].polyline);
+        }
     }
 
-    async function actualizarUI(data) {
-        document.getElementById('nombre-id').innerText = data.id;
-        document.getElementById('color-indicator').style.background = colorPorId(data.id);
-        document.getElementById('vel').innerText = data.vel || "0";
-        document.getElementById('fec-val').innerText = data.fec || "--/--/--"; // MOSTRAR FECHA
-        document.getElementById('hor-val').innerText = data.hor || "--:--:--"; // MOSTRAR HORA
-        document.getElementById('btp').innerText = data.btp || "--";
-        document.getElementById('btc').innerText = data.btc || "--";
-        document.getElementById('puntos').innerText = flota[data.id] ? flota[data.id].coords.length : "0";
+    db.ref('ultimo_estado').on('child_added', (s) => procesarDato(s.val()));
+    db.ref('ultimo_estado').on('child_changed', (s) => procesarDato(s.val()));
+
+    function procesarDato(data) {
+        const id = data.id;
+        const pos = [parseFloat(data.lat), parseFloat(data.lon)];
         
-        try {
-            const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}&zoom=18`);
-            const json = await resp.json();
-            document.getElementById('direccion').innerText = json.display_name.split(',').slice(0, 3).join(',');
-        } catch (e) { document.getElementById('direccion').innerText = "Sin dirección"; }
+        if (!flota[id]) {
+            flota[id] = {
+                marker: L.circleMarker(pos, { radius: 9, fillColor: '#e67e22', color: '#white', weight: 2, fillOpacity: 1 }).addTo(map),
+                polyline: L.polyline([], { color: '#e67e22', weight: 3 }).addTo(map),
+                coords: []
+            };
+            agregarALista(id);
+        }
+
+        flota[id].marker.setLatLng(pos).bringToFront();
+        flota[id].coords.push(pos);
+        flota[id].polyline.setLatLngs(flota[id].coords);
+
+        if (unidadEnFoco === id) {
+            actualizarUI(data);
+            map.panTo(pos);
+        }
     }
 
-    async function cambiarModo(modo) {
-        modoActual = modo;
-        document.getElementById('btn-rt').classList.toggle('active', modo === 'rt');
-        document.getElementById('btn-hist').classList.toggle('active', modo === 'hist');
-        document.getElementById('hist-controls').style.display = (modo === 'hist') ? 'block' : 'none';
-        limpiarMapa();
-        if (modo === 'rt') { await cargarHistorialDia(); escucharRT(); }
+    function agregarALista(id) {
+        const lista = document.getElementById('lista-vehiculos');
+        const div = document.createElement('div');
+        div.className = 'filter-item';
+        div.innerHTML = `<input type="checkbox" checked class="chk-unidad" data-id="${id}"> <span onclick="enfocar('${id}')">${id}</span>`;
+        div.querySelector('input').onchange = (e) => actualizarVisibilidad(id, e.target.checked);
+        lista.appendChild(div);
     }
 
-    function limpiarMapa() {
-        Object.keys(flota).forEach(id => {
-            map.removeLayer(flota[id].marker); map.removeLayer(flota[id].polyline); map.removeLayer(flota[id].puntosGroup);
-        });
-        flota = {};
-        document.getElementById('lista-vehiculos').innerHTML = '';
-        unidadEnFoco = null;
+    function enfocar(id) {
+        unidadEnFoco = id;
+        db.ref(`ultimo_estado/${id}`).once('value', s => actualizarUI(s.val()));
+        map.flyTo(flota[id].marker.getLatLng(), 16);
+        if (window.innerWidth < 768) toggleMenu();
     }
 
-    async function cargarHistorialDia(fechaManual = null) {
-        const hoy = fechaManual || new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const snap = await db.ref('historial').once('value');
-        snap.forEach(v => v.forEach(p => { if (p.val().fec === hoy) actualizarPosicion(p.val(), true); }));
-        const actual = await db.ref('ultimo_estado').once('value');
-        actual.forEach(s => { if(flota[s.val().id]) actualizarPosicion(s.val(), false); });
-    }
+    function actualizarUI(data) {
+        document.getElementById('nombre-id').innerText = data.id;
+        document.getElementById('vel').innerText = data.vel || "0";
+        document.getElementById('fec-val').innerText = data.fec || "--/--/--"; // <--- AQUÍ SE MUESTRA LA FECHA
+        document.getElementById('hor-val').innerText = data.hor || "--:--:--";
+        document.getElementById('btc').innerText = data.btc || "--";
+        document.getElementById('btp').innerText = data.btp || "--";
+        document.getElementById('sat').innerText = data.sat || "0";
+        document.getElementById('color-indicator').style.background = '#e67e22';
 
-    cambiarModo('rt');
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}`)
+            .then(r => r.json()).then(j => {
+                document.getElementById('direccion').innerText = j.display_name.split(',').slice(0,3).join(',');
+            });
+    }
 </script>
 </body>
 </html>
