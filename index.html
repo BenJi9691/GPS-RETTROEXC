@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Panel GPS - Flota BenJi Pro + Reportes</title>
+    <title>Panel GPS - Flota BenJi Premium</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -31,21 +31,18 @@
         }
 
         .section-title { font-weight: bold; margin: 15px 0 8px 0; color: #2c3e50; border-bottom: 2px solid #e67e22; font-size: 0.85em; }
-        
         .mode-switch { display: flex; background: #f0f0f0; padding: 4px; border-radius: 8px; margin-bottom: 10px; }
         .mode-btn { flex: 1; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.75em; font-weight: bold; }
         .mode-btn.active { background: #e67e22; color: white; }
 
         .btn-excel {
             width: 100%; background: #27ae60; color: white; border: none;
-            padding: 10px; border-radius: 8px; font-weight: bold;
-            cursor: pointer; margin-top: 10px; font-size: 0.8em;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 0.8em;
         }
-        .btn-excel:hover { background: #219150; }
 
-        .filter-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.85em; font-weight: 600; }
-        .filter-item input { width: 16px; height: 16px; margin-right: 10px; accent-color: #e67e22; }
+        .filter-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.85em; font-weight: 600; cursor: pointer; }
+        .filter-item:hover { color: #e67e22; }
+        .filter-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: #e67e22; cursor: pointer; }
 
         #info-panel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -80,12 +77,16 @@
     </div>
 
     <div class="section-title">UNIDADES</div>
+    <div class="filter-item">
+        <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)"> 
+        <span style="color:#e67e22">MOSTRAR TODAS</span>
+    </div>
     <div id="lista-vehiculos"></div>
 </div>
 
 <div id="info-panel">
-    <div class="header-panel" style="display:flex; justify-content:space-between;">
-        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:10px;height:10px;border-radius:50%;"></span> <span id="nombre-id">Iniciando...</span></div>
+    <div class="header-panel" style="display:flex; justify-content:space-between; margin-bottom: 10px;">
+        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:10px;height:10px;border-radius:50%;"></span> <span id="nombre-id">Sincronizando...</span></div>
         <div id="status-flota" class="status-badge">ONLINE</div>
     </div>
     <div class="grid-data">
@@ -109,7 +110,8 @@
 
     let flota = {};
     let modoActual = 'rt';
-    let datosCargadosParaExcel = []; // Guardaremos los datos aquí para el Excel
+    let datosCargadosParaExcel = [];
+    let unidadEnFoco = null; // Para saber a quién seguir
 
     function toggleMenu() {
         const m = document.getElementById('filter-menu');
@@ -145,6 +147,7 @@
         flota = {};
         datosCargadosParaExcel = [];
         document.getElementById('lista-vehiculos').innerHTML = '';
+        unidadEnFoco = null;
     }
 
     async function cargarHistorialDia(fechaManual = null) {
@@ -156,7 +159,7 @@
                     const d = punto.val();
                     if (d.fec === fechaBusqueda) {
                         procesarDato(d, true);
-                        datosCargadosParaExcel.push(d); // Guardamos para el reporte
+                        datosCargadosParaExcel.push(d);
                     }
                 });
             });
@@ -191,7 +194,7 @@
                 polyline: L.polyline([], {color: color, weight: 3, opacity: 0.7}).addTo(map),
                 puntosGroup: L.layerGroup().addTo(map)
             };
-            crearCheckEnLista(id);
+            crearItemLista(id);
         }
 
         const ultima = flota[id].coords[flota[id].coords.length - 1];
@@ -203,20 +206,56 @@
 
         if (!esPrecarga) {
             flota[id].marker.setLatLng(pos);
-            actualizarUI(data);
+            // Si es la unidad que estamos siguiendo, centrar mapa
+            if (unidadEnFoco === id) {
+                map.panTo(pos);
+                actualizarUI(data);
+            }
         }
     }
 
-    function crearCheckEnLista(id) {
+    function crearItemLista(id) {
         const container = document.getElementById('lista-vehiculos');
         const div = document.createElement('div');
         div.className = 'filter-item';
-        div.innerHTML = `<input type="checkbox" checked> <span>${id}</span>`;
+        div.innerHTML = `<input type="checkbox" checked id="chk-${id}"> <span onclick="enfocarUnidad('${id}')">${id}</span>`;
+        
         div.querySelector('input').onchange = (e) => {
-            if (e.target.checked) { flota[id].marker.addTo(map); flota[id].polyline.addTo(map); }
-            else { map.removeLayer(flota[id].marker); map.removeLayer(flota[id].polyline); }
+            flota[id].visible = e.target.checked;
+            if (e.target.checked) { 
+                flota[id].marker.addTo(map); 
+                flota[id].polyline.addTo(map); 
+                flota[id].puntosGroup.addTo(map);
+            } else { 
+                map.removeLayer(flota[id].marker); 
+                map.removeLayer(flota[id].polyline); 
+                map.removeLayer(flota[id].puntosGroup);
+            }
         };
         container.appendChild(div);
+    }
+
+    function enfocarUnidad(id) {
+        unidadEnFoco = id;
+        const pos = flota[id].marker.getLatLng();
+        map.flyTo(pos, 16); // Hace un zoom suave hacia el vehículo
+        
+        // Cargar los datos de esa unidad en el panel inmediatamente
+        db.ref(`ultimo_estado/${id}`).once('value', (snap) => {
+            if (snap.exists()) actualizarUI(snap.val());
+        });
+        
+        if (window.innerWidth < 768) toggleMenu(); // Cierra el menú en móviles tras elegir
+    }
+
+    function toggleAll(checked) {
+        Object.keys(flota).forEach(id => {
+            const chk = document.getElementById(`chk-${id}`);
+            if (chk) {
+                chk.checked = checked;
+                chk.dispatchEvent(new Event('change'));
+            }
+        });
     }
 
     function actualizarUI(data) {
@@ -226,20 +265,16 @@
         document.getElementById('sat').innerText = data.sat || "0";
         document.getElementById('btc').innerText = data.btc || "--";
         document.getElementById('btp').innerText = data.btp || "--";
-        document.getElementById('fec-val').innerText = data.fec || "--";
         document.getElementById('hor-val').innerText = data.hor || "--";
-        document.getElementById('puntos').innerText = flota[data.id].coords.length;
+        document.getElementById('puntos').innerText = flota[data.id] ? flota[data.id].coords.length : "0";
     }
 
     function descargarExcel() {
-        if (datosCargadosParaExcel.length === 0) {
-            alert("No hay datos en esta fecha para descargar.");
-            return;
-        }
+        if (datosCargadosParaExcel.length === 0) return alert("No hay datos.");
         const ws = XLSX.utils.json_to_sheet(datosCargadosParaExcel);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Reporte GPS");
-        XLSX.writeFile(wb, `Reporte_Flota_${datosCargadosParaExcel[0].fec.replace(/\//g, '-')}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+        XLSX.writeFile(wb, `Reporte_BenJi.xlsx`);
     }
 
     cambiarModo('rt');
