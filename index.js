@@ -2,7 +2,7 @@ const mqtt = require('mqtt');
 const admin = require('firebase-admin');
 const http = require('http');
 
-// 1. CONFIGURACIÓN ROBUSTA DE FIREBASE
+// 1. CONFIGURACIÓN DE FIREBASE
 try {
     admin.initializeApp({
         credential: admin.credential.cert({
@@ -12,44 +12,46 @@ try {
         }),
         databaseURL: "https://gps-retroexc-default-rtdb.firebaseio.com"
     });
-    console.log("✅ Firebase configurado correctamente.");
+    console.log("✅ Firebase listo.");
 } catch (error) {
-    console.error("❌ ERROR CRÍTICO EN FIREBASE:", error.message);
+    console.error("❌ Error Firebase:", error.message);
 }
 
 const db = admin.database();
 
-// 2. CONEXIÓN MQTT CON RECONEXIÓN AUTOMÁTICA
-const client = mqtt.connect('mqtt://broker.hivemq.com', {
+// 2. CONEXIÓN AL BROKER REAL (EMQX)
+const BROKER = "mqtt://broker.emqx.io";
+const TOPIC_WILDCARD = "GPS-RETRO/#"; // Escucha todas las unidades de GPS-RETRO
+
+const client = mqtt.connect(BROKER, {
     keepalive: 60,
-    reconnectPeriod: 1000 // Reintenta cada segundo si se cae
+    reconnectPeriod: 1000
 });
 
 client.on('connect', () => {
-    console.log("✅ CONEXIÓN EXITOSA: Robot BenJi escuchando el Broker.");
-    client.subscribe('tu_topico_gps/datos', (err) => {
-        if (!err) console.log("📡 Suscrito al tópico de los vehículos.");
+    console.log(`✅ CONECTADO A EMQX: Escuchando ${TOPIC_WILDCARD}`);
+    client.subscribe(TOPIC_WILDCARD, (err) => {
+        if (!err) console.log("📡 Suscripción activa al bus de datos.");
     });
 });
 
-client.on('error', (err) => {
-    console.error("❌ ERROR MQTT:", err.message);
-});
-
 client.on('message', (topic, message) => {
+    // Log para ver el dato crudo en Render y confirmar que llega
+    console.log(`📩 DATOS RECIBIDOS en [${topic}]: ${message.toString()}`);
+
     try {
         const data = JSON.parse(message.toString());
-        const id = data.id;
+        const id = data.id || topic.split('/').pop(); // Si el JSON no trae ID, usa el del tópico
         const ts = Date.now();
 
-        // Guardar datos
+        // Guardar en Firebase
         db.ref(`ultimo_estado/${id}`).set(data);
         db.ref(`historial/${id}/${ts}`).set(data);
 
-        console.log(`📍 Dato guardado de: ${id} | Bat: ${data.btc}V`);
+        console.log(`📍 Guardado correctamente: ${id}`);
 
-        // Limpieza automática (30 días)
-        if (Math.random() < 0.05) { // Ejecuta limpieza con 5% de probabilidad
+        // Limpieza automática 30 días (5% de probabilidad)
+        if (Math.random() < 0.05) {
             const limite = Date.now() - (30 * 24 * 60 * 60 * 1000);
             db.ref('historial').once('value', (snap) => {
                 snap.forEach((veh) => {
@@ -61,18 +63,12 @@ client.on('message', (topic, message) => {
             });
         }
     } catch (e) {
-        console.error("⚠️ Error procesando mensaje:", e.message);
+        console.error("⚠️ Error en JSON:", e.message);
     }
 });
 
-// 3. SERVIDOR DE MANTENIMIENTO PARA RENDER (Indispensable)
-const server = http.createServer((req, res) => {
-    res.writeHead(200, {'Content-Type': 'text/plain'});
-    res.end('BenJi GPS Server Is Running\n');
-});
-
-// Render asigna el puerto automáticamente
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
-    console.log(`🚀 Servidor de mantenimiento en puerto ${PORT}`);
-});
+// 3. SERVIDOR FANTASMA PARA RENDER
+http.createServer((req, res) => {
+    res.writeHead(200);
+    res.end('Robot BenJi EMQX Active');
+}).listen(process.env.PORT || 10000);
