@@ -1,64 +1,55 @@
 const mqtt = require('mqtt');
 const admin = require('firebase-admin');
 
-// 1. CONFIGURACIÓN SEGURA POR VARIABLES DE ENTORNO
+// 1. INICIO DE SESIÓN SEGURO
 try {
-    // Limpiamos la llave privada por si Render añadió caracteres extra
-    const pKey = process.env.FIREBASE_PRIVATE_KEY 
-        ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') 
-        : null;
+    const pKey = process.env.FIREBASE_PRIVATE_KEY;
+    const cEmail = process.env.FIREBASE_CLIENT_EMAIL;
 
-    if (!pKey || !process.env.FIREBASE_CLIENT_EMAIL) {
-        throw new Error("Faltan las variables FIREBASE_PRIVATE_KEY o FIREBASE_CLIENT_EMAIL en Render");
+    // Verificación de seguridad
+    if (!pKey || !cEmail) {
+        throw new Error("Faltan las variables en Render: Revisa la pestaña Environment.");
     }
 
     admin.initializeApp({
         credential: admin.credential.cert({
-            projectId: "gps-retroexc", 
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: pKey
+            projectId: "gps-retroexc",
+            clientEmail: cEmail,
+            // Esta línea limpia la llave para que Google la acepte sin errores
+            privateKey: pKey.replace(/\\n/g, '\n')
         }),
         databaseURL: "https://gps-retroexc-default-rtdb.firebaseio.com"
     });
 
-    console.log("✅ ¡ÉXITO TOTAL! Robot BenJi conectado a Firebase.");
+    console.log("✅ ¡CONEXIÓN EXITOSA! El Robot BenJi está en línea.");
 } catch (error) {
-    console.error("❌ ERROR DE AUTENTICACIÓN:", error.message);
-    process.exit(1);
+    console.error("❌ ERROR AL INICIAR:", error.message);
+    process.exit(1); 
 }
 
 const db = admin.database();
-
-// 2. CONEXIÓN AL BROKER MQTT
 const client = mqtt.connect('mqtt://broker.emqx.io:1883');
 
 client.on('connect', () => {
     client.subscribe('GPS-RETRO');
-    console.log("🚀 Escuchando datos del tópico: GPS-RETRO");
+    console.log("🚀 Escuchando vehículos en tiempo real...");
 });
 
-// 3. PROCESAMIENTO DE SEÑALES GPS
 client.on('message', (topic, message) => {
     try {
         const data = JSON.parse(message.toString());
         const id = data.id || "SIN-ID";
         const ts = Date.now();
 
-        // Creamos un objeto de actualización para enviar todo en un solo viaje
+        // Guardamos en historial y ubicación actual
         const updates = {};
-        updates[`/historial/${id}/${ts}`] = data; // Para el rastro de 30 días
-        updates[`/ultimo_estado/${id}`] = data;   // Para ver la ubicación actual
+        updates[`/historial/${id}/${ts}`] = data;
+        updates[`/ultimo_estado/${id}`] = data;
 
         db.ref().update(updates)
-            .then(() => console.log(`📍 Posición recibida de: ${id}`))
-            .catch(e => console.error("❌ Error al guardar en Firebase:", e.message));
-
+            .then(() => console.log(`📍 Posición de ${id} recibida.`))
+            .catch(e => console.error("Error Firebase:", e.message));
     } catch (e) {
-        console.error("⚠️ Los datos recibidos no son un JSON válido:", e.message);
+        console.error("Error en datos MQTT:", e.message);
     }
-});
-
-// Manejo de errores de conexión
-client.on('error', (err) => {
-    console.error("❌ Error en MQTT:", err.message);
 });
