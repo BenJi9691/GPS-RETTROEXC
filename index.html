@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Panel GPS - Flota BenJi Premium</title>
+    <title>Panel GPS - Flota BenJi Premium v3</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -14,6 +14,7 @@
         body { margin: 0; padding: 0; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
         
+        /* Estilos del Menú y Panel */
         #menu-toggle {
             position: absolute; top: 15px; right: 15px;
             width: 45px; height: 45px; background: #e67e22;
@@ -35,14 +36,10 @@
         .mode-btn { flex: 1; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.75em; font-weight: bold; }
         .mode-btn.active { background: #e67e22; color: white; }
 
-        .btn-excel {
-            width: 100%; background: #27ae60; color: white; border: none;
-            padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 0.8em;
-        }
+        .btn-excel { width: 100%; background: #27ae60; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 0.8em; }
 
         .filter-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.85em; font-weight: 600; cursor: pointer; }
-        .filter-item:hover { color: #e67e22; }
-        .filter-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: #e67e22; cursor: pointer; }
+        .filter-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: #e67e22; }
 
         #info-panel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -50,10 +47,13 @@
             padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             z-index: 1000;
         }
-        .grid-data { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+        .grid-data { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
         .box { background: #f8f9fa; padding: 6px 8px; border-radius: 10px; border: 1px solid #edf0f2; }
         .label { color: #8a959e; font-size: 0.6em; text-transform: uppercase; font-weight: 800; display: block; }
         .value { font-weight: 700; font-size: 0.95em; color: #2c3e50; }
+        
+        .address-box { border-top: 1px solid #eee; padding-top: 8px; margin-top: 5px; }
         .status-badge { font-size: 0.65em; background: #2ecc71; color: white; padding: 2px 8px; border-radius: 20px; font-weight: bold; }
         input[type="date"] { width: 90%; padding: 8px; border-radius: 8px; border: 1px solid #ddd; margin-top: 5px; }
     </style>
@@ -69,33 +69,39 @@
         <button id="btn-rt" class="mode-btn active" onclick="cambiarModo('rt')">TIEMPO REAL</button>
         <button id="btn-hist" class="mode-btn" onclick="cambiarModo('hist')">HISTORIAL</button>
     </div>
-
     <div id="hist-controls" style="display:none;">
         <div class="section-title">FECHA</div>
         <input type="date" id="input-fecha" onchange="cargarDatosHistorial()">
         <button class="btn-excel" onclick="descargarExcel()">📊 DESCARGAR EXCEL</button>
     </div>
-
     <div class="section-title">UNIDADES</div>
     <div class="filter-item">
-        <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)"> 
-        <span style="color:#e67e22">MOSTRAR TODAS</span>
+        <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)"> <span style="color:#e67e22">TODAS</span>
     </div>
     <div id="lista-vehiculos"></div>
 </div>
 
 <div id="info-panel">
-    <div class="header-panel" style="display:flex; justify-content:space-between; margin-bottom: 10px;">
-        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:10px;height:10px;border-radius:50%;"></span> <span id="nombre-id">Sincronizando...</span></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom: 10px; align-items: center;">
+        <div style="font-weight:bold; font-size: 1.1em;">
+            <span id="color-indicator" style="display:inline-block;width:12px;height:12px;border-radius:50%; margin-right:5px;"></span> 
+            <span id="nombre-id">Buscando...</span>
+        </div>
         <div id="status-flota" class="status-badge">ONLINE</div>
     </div>
+
     <div class="grid-data">
         <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span> <span style="font-size:0.7em">km/h</span></div>
         <div class="box"><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
+        <div class="box"><span class="label">Batería GPS</span><span id="btp" class="value">--</span> <span style="font-size:0.7em">V</span></div>
+        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span> <span style="font-size:0.7em">V</span></div>
         <div class="box"><span class="label">Puntos Hoy</span><span id="puntos" class="value">0</span></div>
-        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span></div>
-        <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span></div>
         <div class="box"><span class="label">Hora</span><span id="hor-val" class="value">--:--</span></div>
+    </div>
+
+    <div class="address-box">
+        <span class="label">Dirección Aproximada</span>
+        <div id="direccion" style="font-size: 0.85em; font-weight: 600; color: #34495e;">Obteniendo ubicación...</div>
     </div>
 </div>
 
@@ -110,8 +116,8 @@
 
     let flota = {};
     let modoActual = 'rt';
-    let datosCargadosParaExcel = [];
-    let unidadEnFoco = null; // Para saber a quién seguir
+    let unidadEnFoco = null;
+    let cacheDirecciones = {}; // Para no saturar el servicio de mapas
 
     function toggleMenu() {
         const m = document.getElementById('filter-menu');
@@ -130,12 +136,8 @@
         document.getElementById('btn-rt').classList.toggle('active', modo === 'rt');
         document.getElementById('btn-hist').classList.toggle('active', modo === 'hist');
         document.getElementById('hist-controls').style.display = (modo === 'hist') ? 'block' : 'none';
-        
         limpiarMapa();
-        if (modo === 'rt') {
-            await cargarHistorialDia(); 
-            escucharRT();
-        }
+        if (modo === 'rt') { await cargarHistorialDia(); escucharRT(); }
     }
 
     function limpiarMapa() {
@@ -145,33 +147,33 @@
             map.removeLayer(flota[id].puntosGroup);
         });
         flota = {};
-        datosCargadosParaExcel = [];
         document.getElementById('lista-vehiculos').innerHTML = '';
         unidadEnFoco = null;
     }
 
+    async function obtenerDireccion(lat, lon) {
+        const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+        if (cacheDirecciones[key]) return cacheDirecciones[key];
+
+        try {
+            const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
+            const data = await resp.json();
+            const addr = data.display_name.split(',').slice(0, 3).join(',');
+            cacheDirecciones[key] = addr;
+            return addr;
+        } catch (e) { return "Dirección no disponible"; }
+    }
+
     async function cargarHistorialDia(fechaManual = null) {
-        const fechaBusqueda = fechaManual || new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        
-        await db.ref('historial').once('value', (snapshot) => {
-            snapshot.forEach((vehiculo) => {
-                vehiculo.forEach((punto) => {
-                    const d = punto.val();
-                    if (d.fec === fechaBusqueda) {
-                        procesarDato(d, true);
-                        datosCargadosParaExcel.push(d);
-                    }
+        const hoy = fechaManual || new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        await db.ref('historial').once('value', (snap) => {
+            snap.forEach((veh) => {
+                veh.forEach((pto) => {
+                    const d = pto.val();
+                    if (d.fec === hoy) procesarDato(d, true);
                 });
             });
         });
-    }
-
-    function cargarDatosHistorial() {
-        const inputF = document.getElementById('input-fecha').value;
-        if (!inputF) return;
-        const fechaFinal = inputF.split('-').reverse().join('/');
-        limpiarMapa();
-        cargarHistorialDia(fechaFinal);
     }
 
     function escucharRT() {
@@ -181,15 +183,13 @@
         });
     }
 
-    function procesarDato(data, esPrecarga) {
+    async function procesarDato(data, esPrecarga) {
         const id = data.id;
         const pos = [parseFloat(data.lat), parseFloat(data.lon)];
         const color = colorPorId(id);
 
         if (!flota[id]) {
-            flota[id] = {
-                visible: true,
-                coords: [],
+            flota[id] = { visible: true, coords: [], 
                 marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(map),
                 polyline: L.polyline([], {color: color, weight: 3, opacity: 0.7}).addTo(map),
                 puntosGroup: L.layerGroup().addTo(map)
@@ -197,19 +197,16 @@
             crearItemLista(id);
         }
 
-        const ultima = flota[id].coords[flota[id].coords.length - 1];
-        if (!ultima || ultima[0] !== pos[0] || ultima[1] !== pos[1]) {
-            flota[id].coords.push(pos);
-            flota[id].polyline.setLatLngs(flota[id].coords);
-            L.circleMarker(pos, { radius: 2, color: color, stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
-        }
+        flota[id].coords.push(pos);
+        flota[id].polyline.setLatLngs(flota[id].coords);
+        L.circleMarker(pos, { radius: 2, color: color, stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
 
         if (!esPrecarga) {
             flota[id].marker.setLatLng(pos);
-            // Si es la unidad que estamos siguiendo, centrar mapa
-            if (unidadEnFoco === id) {
-                map.panTo(pos);
+            if (unidadEnFoco === id || !unidadEnFoco) {
+                if (!unidadEnFoco) unidadEnFoco = id;
                 actualizarUI(data);
+                map.panTo(pos);
             }
         }
     }
@@ -219,62 +216,59 @@
         const div = document.createElement('div');
         div.className = 'filter-item';
         div.innerHTML = `<input type="checkbox" checked id="chk-${id}"> <span onclick="enfocarUnidad('${id}')">${id}</span>`;
-        
         div.querySelector('input').onchange = (e) => {
-            flota[id].visible = e.target.checked;
-            if (e.target.checked) { 
-                flota[id].marker.addTo(map); 
-                flota[id].polyline.addTo(map); 
-                flota[id].puntosGroup.addTo(map);
-            } else { 
-                map.removeLayer(flota[id].marker); 
-                map.removeLayer(flota[id].polyline); 
-                map.removeLayer(flota[id].puntosGroup);
-            }
+            if (e.target.checked) { flota[id].marker.addTo(map); flota[id].polyline.addTo(map); flota[id].puntosGroup.addTo(map); }
+            else { map.removeLayer(flota[id].marker); map.removeLayer(flota[id].polyline); map.removeLayer(flota[id].puntosGroup); }
         };
         container.appendChild(div);
     }
 
-    function enfocarUnidad(id) {
+    async function enfocarUnidad(id) {
         unidadEnFoco = id;
-        const pos = flota[id].marker.getLatLng();
-        map.flyTo(pos, 16); // Hace un zoom suave hacia el vehículo
-        
-        // Cargar los datos de esa unidad en el panel inmediatamente
-        db.ref(`ultimo_estado/${id}`).once('value', (snap) => {
-            if (snap.exists()) actualizarUI(snap.val());
-        });
-        
-        if (window.innerWidth < 768) toggleMenu(); // Cierra el menú en móviles tras elegir
+        const p = flota[id].marker.getLatLng();
+        map.flyTo(p, 16);
+        db.ref(`ultimo_estado/${id}`).once('value', (s) => { if (s.exists()) actualizarUI(s.val()); });
+        if (window.innerWidth < 768) toggleMenu();
     }
 
-    function toggleAll(checked) {
-        Object.keys(flota).forEach(id => {
-            const chk = document.getElementById(`chk-${id}`);
-            if (chk) {
-                chk.checked = checked;
-                chk.dispatchEvent(new Event('change'));
-            }
-        });
-    }
-
-    function actualizarUI(data) {
+    async function actualizarUI(data) {
         document.getElementById('nombre-id').innerText = data.id;
         document.getElementById('color-indicator').style.background = colorPorId(data.id);
         document.getElementById('vel').innerText = data.vel || "0";
         document.getElementById('sat').innerText = data.sat || "0";
-        document.getElementById('btc').innerText = data.btc || "--";
         document.getElementById('btp').innerText = data.btp || "--";
+        document.getElementById('btc').innerText = data.btc || "--";
         document.getElementById('hor-val').innerText = data.hor || "--";
         document.getElementById('puntos').innerText = flota[data.id] ? flota[data.id].coords.length : "0";
+        
+        // Obtener dirección aproximada
+        const addr = await obtenerDireccion(data.lat, data.lon);
+        document.getElementById('direccion').innerText = addr;
+    }
+
+    function toggleAll(c) {
+        Object.keys(flota).forEach(id => {
+            const ck = document.getElementById(`chk-${id}`);
+            if (ck && ck.checked !== c) { ck.checked = c; ck.dispatchEvent(new Event('change')); }
+        });
+    }
+
+    function cargarDatosHistorial() {
+        const f = document.getElementById('input-fecha').value;
+        if (!f) return;
+        limpiarMapa();
+        cargarHistorialDia(f.split('-').reverse().join('/'));
     }
 
     function descargarExcel() {
-        if (datosCargadosParaExcel.length === 0) return alert("No hay datos.");
-        const ws = XLSX.utils.json_to_sheet(datosCargadosParaExcel);
+        const data = [];
+        Object.keys(flota).forEach(id => {
+            flota[id].coords.forEach(c => data.push({ Vehículo: id, Lat: c[0], Lon: c[1] }));
+        });
+        const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Reporte");
-        XLSX.writeFile(wb, `Reporte_BenJi.xlsx`);
+        XLSX.writeFile(wb, "Reporte_BenJi.xlsx");
     }
 
     cambiarModo('rt');
