@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GPS Flota - Telemetría Completa</title>
+    <title>GPS Flota - Telemetría Nube</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <style>
         body { margin: 0; padding: 0; background: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
-        
-        /* Botón de Menú */
         #menu-toggle {
             position: absolute; top: 15px; right: 15px;
             width: 45px; height: 45px; background: #e67e22;
@@ -21,13 +21,9 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
             z-index: 1002; cursor: pointer; font-size: 22px; transition: 0.3s;
         }
-        #menu-toggle:hover { background: #d35400; transform: scale(1.05); }
-
-        /* Menú Desplegable */
         #filter-menu {
             position: absolute; top: 70px; right: 15px;
-            width: 240px; background: white;
-            padding: 15px; border-radius: 15px;
+            width: 240px; background: white; padding: 15px; border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.25);
             z-index: 1001; display: none;
             max-height: 50vh; overflow-y: auto; border: 1px solid #ddd;
@@ -35,8 +31,6 @@
         .filter-header { font-weight: bold; margin-bottom: 12px; color: #2c3e50; border-bottom: 2px solid #e67e22; padding-bottom: 5px; }
         .filter-item { display: flex; align-items: center; margin-bottom: 10px; font-size: 0.9em; font-weight: 500; }
         .filter-item input { width: 18px; height: 18px; margin-right: 12px; accent-color: #e67e22; cursor: pointer; }
-
-        /* Panel de Información Completo */
         #info-panel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             width: 94%; max-width: 450px; background: white;
@@ -45,66 +39,46 @@
         }
         .header-panel { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .unit-title { display: flex; align-items: center; font-size: 1.2em; font-weight: bold; color: #2c3e50; }
-        #color-indicator { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; border: 2px solid #fff; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
-
+        #color-indicator { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; border: 2px solid #fff; }
         .grid-data { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
         .box { background: #f8f9fa; padding: 8px; border-radius: 10px; border: 1px solid #edf0f2; }
-        .label { color: #8a959e; font-size: 0.65em; text-transform: uppercase; font-weight: 800; display: block; margin-bottom: 2px; }
+        .label { color: #8a959e; font-size: 0.65em; text-transform: uppercase; font-weight: 800; display: block; }
         .value { font-weight: 700; font-size: 1.05em; color: #2c3e50; }
-        .sub-val { font-size: 0.8em; color: #7f8c8d; font-weight: normal; }
-
-        .footer-data { margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
         .status-badge { font-size: 0.7em; background: #e67e22; color: white; padding: 3px 10px; border-radius: 20px; font-weight: bold; }
-        .coords-box { font-family: monospace; font-size: 0.85em; color: #34495e; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
-
 <div id="menu-toggle" onclick="toggleMenu()">☰</div>
-
 <div id="filter-menu">
     <div class="filter-header">Control de Flota</div>
-    <div class="filter-item">
-        <input type="checkbox" id="check-all" checked> <strong>MOSTRAR TODAS</strong>
-    </div>
     <div id="lista-vehiculos"></div>
 </div>
 
 <div id="info-panel">
     <div class="header-panel">
-        <div class="unit-title">
-            <span id="color-indicator"></span> 
-            <span id="nombre-id">Buscando...</span>
-        </div>
-        <div id="status-flota" class="status-badge">Sincronizando</div>
+        <div class="unit-title"><span id="color-indicator"></span><span id="nombre-id">Cargando...</span></div>
+        <div id="status-flota" class="status-badge">Nube Activa</div>
     </div>
-
     <div class="grid-data">
-        <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span> <span class="sub-val">km/h</span></div>
+        <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span> <small>km/h</small></div>
         <div class="box"><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
-        <div class="box"><span class="label">Puntos Hoy</span><span id="puntos" class="value">0</span></div>
-        
-        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span> <span class="sub-val">V</span></div>
-        <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span> <span class="sub-val">V</span></div>
+        <div class="box"><span class="label">Puntos</span><span id="puntos" class="value">0</span></div>
+        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span> <small>V</small></div>
+        <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span> <small>V</small></div>
         <div class="box"><span class="label">Hora</span><span id="hor-val" class="value">--:--</span></div>
-    </div>
-
-    <div class="footer-data">
-        <div class="coords-box">
-            <span class="label">Ubicación (Lat, Lon)</span>
-            <span id="coords-text">0.00000, 0.00000</span>
-        </div>
-        <div style="text-align: right;">
-            <span class="label">Fecha</span>
-            <span id="fec-val" style="font-weight: bold; color: #2c3e50; font-size: 0.9em;">--/--/----</span>
-        </div>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+    // --- CONFIG FIREBASE ---
+    const firebaseConfig = { databaseURL: "https://gps-retroexc-default-rtdb.firebaseio.com" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // --- MAPA ---
     const map = L.map('map', { zoomControl: false }).setView([-8.0942, -79.0101], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -117,116 +91,70 @@
     }
 
     function colorPorId(id) {
-        const colores = ['#e67e22', '#9b59b6', '#2ecc71', '#3498db', '#f1c40f', '#e74c3c', '#1abc9c'];
+        const colores = ['#e67e22', '#9b59b6', '#2ecc71', '#3498db', '#f1c40f'];
         let hash = 0;
         for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
         return colores[Math.abs(hash) % colores.length];
     }
 
-    const client = new Paho.MQTT.Client("broker.emqx.io", 8084, "web_full_" + Math.random().toString(16).slice(2, 5));
+    function procesarDato(data, esCargaInicial = false) {
+        const id = data.id || "S-ID";
+        const pos = [parseFloat(data.lat), parseFloat(data.lon)];
 
-    client.onMessageArrived = (message) => {
-        try {
-            const data = JSON.parse(message.payloadString);
-            const id = data.id || "S-ID";
-            const colorActual = colorPorId(id);
-            const pos = [parseFloat(data.lat), parseFloat(data.lon)];
+        if (!flota[id]) {
+            const color = colorPorId(id);
+            flota[id] = {
+                marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(map),
+                polyline: L.polyline([], {color: color, weight: 3, opacity: 0.6}).addTo(map),
+                rutaCoords: []
+            };
+            seleccionados.add(id);
+            agregarAMenu(id);
+        }
 
-            if (!flota[id]) {
-                flota[id] = {
-                    marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: colorActual, fillOpacity: 1 }),
-                    polyline: L.polyline([], {color: colorActual, weight: 3, opacity: 0.6}),
-                    puntosGroup: L.layerGroup(),
-                    rutaCoords: [],
-                    ultimoDato: data
-                };
-                seleccionados.add(id);
-                agregarAMenuLateral(id);
-                flota[id].marker.addTo(map);
-                flota[id].polyline.addTo(map);
-                flota[id].puntosGroup.addTo(map);
-            }
+        flota[id].marker.setLatLng(pos);
+        flota[id].rutaCoords.push(pos);
+        flota[id].polyline.setLatLngs(flota[id].rutaCoords);
 
-            // Actualizar memoria
-            flota[id].marker.setLatLng(pos);
-            flota[id].rutaCoords.push(pos);
-            flota[id].polyline.setLatLngs(flota[id].rutaCoords);
-            flota[id].ultimoDato = data;
-            L.circleMarker(pos, { radius: 3, color: colorActual, opacity: 0.3, stroke: false }).addTo(flota[id].puntosGroup);
-
-            // Actualizar Interfaz si está seleccionado
-            if (seleccionados.has(id)) {
-                actualizarUI(data, colorActual);
-            }
-        } catch (e) { console.error("Error datos:", e); }
-    };
-
-    function agregarAMenuLateral(id) {
-        const cont = document.getElementById('lista-vehiculos');
-        const d = document.createElement('div');
-        d.className = 'filter-item';
-        d.innerHTML = `<input type="checkbox" class="car-check" data-id="${id}" checked> ${id}`;
-        d.querySelector('input').addEventListener('change', (e) => {
-            const isChecked = e.target.checked;
-            if (isChecked) {
-                seleccionados.add(id);
-                flota[id].marker.addTo(map);
-                flota[id].polyline.addTo(map);
-                flota[id].puntosGroup.addTo(map);
-                actualizarUI(flota[id].ultimoDato, colorPorId(id));
-                map.panTo(flota[id].marker.getLatLng());
-            } else {
-                seleccionados.delete(id);
-                map.removeLayer(flota[id].marker);
-                map.removeLayer(flota[id].polyline);
-                map.removeLayer(flota[id].puntosGroup);
-            }
-            actualizarTextoEstado();
-        });
-        cont.appendChild(d);
+        if (!esCargaInicial) {
+            actualizarUI(data);
+        }
     }
 
-    function actualizarUI(data, color) {
-        document.getElementById('color-indicator').style.background = color;
-        document.getElementById('nombre-id').innerText = (seleccionados.size === 1) ? data.id : "Vista General";
-        
-        // Carga de todos los campos solicitados
+    function agregarAMenu(id) {
+        const d = document.createElement('div');
+        d.className = 'filter-item';
+        d.innerHTML = `<input type="checkbox" checked> ${id}`;
+        document.getElementById('lista-vehiculos').appendChild(d);
+    }
+
+    function actualizarUI(data) {
+        document.getElementById('nombre-id').innerText = data.id;
         document.getElementById('vel').innerText = data.vel || "0";
         document.getElementById('sat').innerText = data.sat || "0";
         document.getElementById('btc').innerText = data.btc || "--";
         document.getElementById('btp').innerText = data.btp || "--";
-        document.getElementById('fec-val').innerText = data.fec || "--/--/--";
-        document.getElementById('hor-val').innerText = data.hor || "--:--:--";
-        document.getElementById('coords-text').innerText = parseFloat(data.lat).toFixed(6) + ", " + parseFloat(data.lon).toFixed(6);
+        document.getElementById('hor-val').innerText = data.hor || "--:--";
         document.getElementById('puntos').innerText = flota[data.id].rutaCoords.length;
-        
-        actualizarTextoEstado();
     }
 
-    function actualizarTextoEstado() {
-        const badge = document.getElementById('status-flota');
-        const t = Object.keys(flota).length;
-        const s = seleccionados.size;
-
-        if (s === t && t > 0) {
-            badge.innerText = "FLOTA COMPLETA (" + t + ")";
-            badge.style.background = "#2ecc71";
-        } else {
-            badge.innerText = "VIENDO " + s + " DE " + t;
-            badge.style.background = "#e67e22";
+    // CARGAR HISTORIAL DE FIREBASE
+    db.ref('historial').once('value', (snap) => {
+        const data = snap.val();
+        if (data) {
+            Object.keys(data).forEach(vehId => {
+                Object.keys(data[vehId]).sort().forEach(ts => {
+                    procesarDato(data[vehId][ts], true);
+                });
+            });
         }
-    }
-
-    document.getElementById('check-all').addEventListener('change', (e) => {
-        document.querySelectorAll('.car-check').forEach(c => {
-            if (c.checked !== e.target.checked) {
-                c.checked = e.target.checked;
-                c.dispatchEvent(new Event('change'));
-            }
-        });
     });
 
-    client.connect({ useSSL: true, onSuccess: () => { client.subscribe("GPS-RETRO"); } });
+    // TIEMPO REAL MQTT
+    const client = new Paho.MQTT.Client("broker.emqx.io", 8084, "web_" + Math.random());
+    client.onMessageArrived = (m) => { procesarDato(JSON.parse(m.payloadString), false); };
+    client.connect({ useSSL: true, onSuccess: () => client.subscribe("GPS-RETRO") });
+
 </script>
 </body>
 </html>
