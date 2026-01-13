@@ -2,7 +2,7 @@ const mqtt = require('mqtt');
 const admin = require('firebase-admin');
 const http = require('http');
 
-// 1. CONFIGURACIÓN DE FIREBASE
+// 1. CONFIGURACIÓN DE FIREBASE (Usa tus variables de entorno en Render)
 try {
     admin.initializeApp({
         credential: admin.credential.cert({
@@ -12,16 +12,16 @@ try {
         }),
         databaseURL: "https://gps-retroexc-default-rtdb.firebaseio.com"
     });
-    console.log("✅ Firebase listo.");
+    console.log("✅ Firebase configurado correctamente.");
 } catch (error) {
-    console.error("❌ Error Firebase:", error.message);
+    console.error("❌ ERROR EN FIREBASE:", error.message);
 }
 
 const db = admin.database();
 
-// 2. CONEXIÓN AL BROKER REAL (EMQX)
-const BROKER = "mqtt://broker.emqx.io";
-const TOPIC_WILDCARD = "GPS-RETRO/#"; // Escucha todas las unidades de GPS-RETRO
+// 2. CONEXIÓN MQTT A EMQX (Puerto 1883 interno del broker)
+const BROKER = "mqtt://broker.emqx.io"; 
+const TOPIC_SUBSCRIPTION = "GPS-RETRO/#"; // Escucha todas las unidades
 
 const client = mqtt.connect(BROKER, {
     keepalive: 60,
@@ -29,46 +29,37 @@ const client = mqtt.connect(BROKER, {
 });
 
 client.on('connect', () => {
-    console.log(`✅ CONECTADO A EMQX: Escuchando ${TOPIC_WILDCARD}`);
-    client.subscribe(TOPIC_WILDCARD, (err) => {
-        if (!err) console.log("📡 Suscripción activa al bus de datos.");
-    });
+    console.log(`🚀 ROBOT CONECTADO A EMQX. Escuchando: ${TOPIC_SUBSCRIPTION}`);
+    client.subscribe(TOPIC_SUBSCRIPTION);
 });
 
 client.on('message', (topic, message) => {
-    // Log para ver el dato crudo en Render y confirmar que llega
-    console.log(`📩 DATOS RECIBIDOS en [${topic}]: ${message.toString()}`);
+    // Este log es vital: si sale esto en Render, la conexión GPS -> ROBOT es perfecta
+    console.log(`📩 LLEGÓ DATO! Tópico: ${topic} | Contenido: ${message.toString()}`);
 
     try {
         const data = JSON.parse(message.toString());
-        const id = data.id || topic.split('/').pop(); // Si el JSON no trae ID, usa el del tópico
+        const id = data.id || topic.split('/').pop(); 
         const ts = Date.now();
 
         // Guardar en Firebase
         db.ref(`ultimo_estado/${id}`).set(data);
         db.ref(`historial/${id}/${ts}`).set(data);
 
-        console.log(`📍 Guardado correctamente: ${id}`);
-
-        // Limpieza automática 30 días (5% de probabilidad)
-        if (Math.random() < 0.05) {
-            const limite = Date.now() - (30 * 24 * 60 * 60 * 1000);
-            db.ref('historial').once('value', (snap) => {
-                snap.forEach((veh) => {
-                    const puntos = veh.val();
-                    Object.keys(puntos).forEach((key) => {
-                        if (parseInt(key) < limite) db.ref(`historial/${veh.key}/${key}`).remove();
-                    });
-                });
-            });
-        }
     } catch (e) {
-        console.error("⚠️ Error en JSON:", e.message);
+        console.error("⚠️ Error procesando JSON:", e.message);
     }
 });
 
-// 3. SERVIDOR FANTASMA PARA RENDER
-http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end('Robot BenJi EMQX Active');
-}).listen(process.env.PORT || 10000);
+// 3. EL "TRUCO" PARA RENDER (Puerto 10000 para la web)
+// Esto hace que Render vea un puerto abierto y no detenga el servicio.
+const server = http.createServer((req, res) => {
+    res.writeHead(200, {'Content-Type': 'text/plain'});
+    res.end('Servidor GPS BenJi Activo\n');
+});
+
+// Render usa el puerto 10000 por defecto para servicios web
+const WEB_PORT = process.env.PORT || 10000;
+server.listen(WEB_PORT, () => {
+    console.log(`🌐 Servidor de monitoreo listo en puerto ${WEB_PORT}`);
+});
