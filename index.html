@@ -10,31 +10,28 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #f4f7f6; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: #f4f7f6; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
         
-        /* MENÚ LATERAL */
+        /* MENÚ DE UNIDADES CORREGIDO */
         #menu-toggle { position: absolute; top: 15px; right: 15px; width: 45px; height: 45px; background: #e67e22; color: white; border-radius: 12px; display: flex; justify-content: center; align-items: center; z-index: 1002; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-        #filter-menu { position: absolute; top: 70px; right: 15px; width: 250px; background: white; padding: 15px; border-radius: 15px; z-index: 1001; display: none; box-shadow: 0 5px 25px rgba(0,0,0,0.2); max-height: 70vh; overflow-y: auto; }
+        #filter-menu { position: absolute; top: 70px; right: 15px; width: 250px; background: white; padding: 15px; border-radius: 15px; z-index: 1001; display: none; box-shadow: 0 5px 25px rgba(0,0,0,0.2); }
 
-        .section-title { font-weight: 800; font-size: 0.75em; color: #7f8c8d; text-transform: uppercase; margin: 10px 0; border-bottom: 2px solid #f39c12; }
+        .section-title { font-weight: 800; font-size: 0.75em; color: #7f8c8d; text-transform: uppercase; margin-bottom: 10px; border-bottom: 2px solid #f39c12; }
         
-        /* SELECTOR TODAS */
-        .all-box { background: #fff4e5; padding: 10px; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; border: 1px solid #ffcc80; }
-        .filter-item { display: flex; align-items: center; padding: 6px 0; font-size: 0.9em; font-weight: 600; cursor: pointer; }
+        /* ESTILO DEL BOTÓN TODAS */
+        #selector-todas { background: #fff4e5; padding: 10px; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; border: 1px solid #ffcc80; cursor: pointer; }
+        .filter-item { display: flex; align-items: center; padding: 6px 0; font-size: 0.9em; font-weight: 600; }
         .filter-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: #e67e22; }
 
-        /* PANEL DE INFORMACIÓN ACTUALIZADO */
-        #info-panel { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 480px; background: white; padding: 15px; border-radius: 20px; z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        .grid-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
-        .box { background: #f8f9fa; padding: 8px; border-radius: 12px; border: 1px solid #eee; text-align: center; }
-        
-        /* CAJAS RESALTADAS PARA FECHA Y HORA */
-        .box.date-time { background: #fff9c4; border: 1px solid #fbc02d; } 
-        
-        .label { display: block; font-size: 0.55em; color: #95a5a6; font-weight: 800; text-transform: uppercase; }
-        .value { font-size: 0.9em; font-weight: 700; color: #2c3e50; }
-        .status { font-size: 0.6em; background: #2ecc71; color: white; padding: 3px 10px; border-radius: 10px; font-weight: bold; }
+        /* PANEL DE INFORMACIÓN CON FECHA (7 ESPACIOS) */
+        #info-panel { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 94%; max-width: 500px; background: white; padding: 15px; border-radius: 20px; z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .grid-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+        .box { background: #f8f9fa; padding: 10px 5px; border-radius: 12px; border: 1px solid #eee; text-align: center; }
+        .box.destacado { background: #fff9c4; border: 1px solid #fbc02d; }
+        .label { display: block; font-size: 0.55em; color: #95a5a6; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; }
+        .value { font-size: 0.95em; font-weight: 700; color: #2c3e50; }
+        .status { font-size: 0.6em; background: #2ecc71; color: white; padding: 4px 12px; border-radius: 12px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -43,10 +40,10 @@
 <div id="menu-toggle" onclick="toggleMenu()">☰</div>
 
 <div id="filter-menu">
-    <div class="section-title">CONTROL DE UNIDADES</div>
-    <div class="all-box">
-        <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)">
-        <span style="font-weight: 800; color: #d35400; margin-left: 10px;">SELECCIONAR TODAS</span>
+    <div class="section-title">CONTROL DE FLOTA</div>
+    <div id="selector-todas" onclick="toggleAll()">
+        <input type="checkbox" id="check-all" checked>
+        <span style="font-weight: 800; color: #d35400; margin-left: 10px;">MOSTRAR TODAS</span>
     </div>
     <div id="lista-vehiculos"></div>
 </div>
@@ -54,26 +51,25 @@
 <div id="info-panel">
     <div style="display:flex; justify-content:space-between; align-items:center;">
         <div>
-            <span id="color-indicator" style="display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:5px; background: #e67e22;"></span>
-            <span id="nombre-id" style="font-weight:800; font-size:1.1em;">Esperando unidad...</span>
+            <span id="color-indicator" style="display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:8px; background: #e67e22;"></span>
+            <span id="nombre-id" style="font-weight:800; font-size:1.1em;">Seleccione Vehículo</span>
         </div>
         <span class="status">ONLINE</span>
     </div>
 
     <div class="grid-info">
         <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span><small> km/h</small></div>
-        
-        <div class="box date-time"><span class="label">Fecha</span><span id="fec-val" class="value">--/--/--</span></div>
-        <div class="box date-time"><span class="label">Hora</span><span id="hor-val" class="value">--:--:--</span></div>
-        
+        <div class="box destacado"><span class="label">Fecha</span><span id="fec-val" class="value">--/--/--</span></div>
+        <div class="box destacado"><span class="label">Hora</span><span id="hor-val" class="value">--:--:--</span></div>
         <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span><small>V</small></div>
         <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span><small>V</small></div>
         <div class="box"><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
+        <div class="box" style="grid-column: span 3; background: #f0f4f8;"><span class="label">Puntos Recorridos</span><span id="pts" class="value">0</span></div>
     </div>
     
     <div style="margin-top:10px; border-top:1px solid #eee; padding-top:10px;">
-        <span class="label">Dirección Aproximada</span>
-        <div id="direccion" style="font-size:0.8em; color:#34495e; font-weight:600;">Cargando ubicación...</div>
+        <span class="label">Ubicación</span>
+        <div id="direccion" style="font-size:0.8em; color:#34495e; font-weight:600;">Esperando datos...</div>
     </div>
 </div>
 
@@ -94,35 +90,38 @@
         m.style.display = (m.style.display === 'block') ? 'none' : 'block';
     }
 
-    // Lógica para el botón TODAS
-    function toggleAll(estado) {
+    // FUNCIÓN PARA EL BOTÓN TODAS
+    function toggleAll() {
+        const master = document.getElementById('check-all');
+        master.checked = !master.checked;
         const checks = document.querySelectorAll('.chk-unidad');
         checks.forEach(c => {
-            if (c.checked !== estado) {
-                c.checked = estado;
-                const id = c.dataset.id;
-                if (estado) {
-                    flota[id].marker.addTo(map);
-                    flota[id].polyline.addTo(map);
-                } else {
-                    map.removeLayer(flota[id].marker);
-                    map.removeLayer(flota[id].polyline);
-                }
-            }
+            c.checked = master.checked;
+            actualizarVisibilidad(c.dataset.id, c.checked);
         });
     }
 
-    db.ref('ultimo_estado').on('child_added', (s) => procesarDato(s.val()));
-    db.ref('ultimo_estado').on('child_changed', (s) => procesarDato(s.val()));
+    function actualizarVisibilidad(id, visible) {
+        if (visible) {
+            flota[id].marker.addTo(map);
+            flota[id].polyline.addTo(map);
+        } else {
+            map.removeLayer(flota[id].marker);
+            map.removeLayer(flota[id].polyline);
+        }
+    }
 
-    function procesarDato(data) {
+    db.ref('ultimo_estado').on('child_added', (s) => procesar(s.val()));
+    db.ref('ultimo_estado').on('child_changed', (s) => procesar(s.val()));
+
+    function procesar(data) {
         const id = data.id;
         const pos = [parseFloat(data.lat), parseFloat(data.lon)];
         
         if (!flota[id]) {
             flota[id] = {
-                marker: L.circleMarker(pos, { radius: 9, fillColor: '#e67e22', color: 'white', weight: 2, fillOpacity: 1 }).addTo(map),
-                polyline: L.polyline([], { color: '#e67e22', weight: 3, opacity: 0.6 }).addTo(map),
+                marker: L.circleMarker(pos, { radius: 10, fillColor: '#e67e22', color: 'white', weight: 2, fillOpacity: 1 }).addTo(map),
+                polyline: L.polyline([], { color: '#e67e22', weight: 3 }).addTo(map),
                 coords: []
             };
             agregarALista(id);
@@ -140,18 +139,12 @@
 
     function agregarALista(id) {
         const lista = document.getElementById('lista-vehiculos');
+        if (document.getElementById(`item-${id}`)) return;
         const div = document.createElement('div');
         div.className = 'filter-item';
+        div.id = `item-${id}`;
         div.innerHTML = `<input type="checkbox" checked class="chk-unidad" data-id="${id}"> <span onclick="enfocar('${id}')">${id}</span>`;
-        div.querySelector('input').onchange = (e) => {
-            if (e.target.checked) {
-                flota[id].marker.addTo(map);
-                flota[id].polyline.addTo(map);
-            } else {
-                map.removeLayer(flota[id].marker);
-                map.removeLayer(flota[id].polyline);
-            }
-        };
+        div.querySelector('input').onchange = (e) => actualizarVisibilidad(id, e.target.checked);
         lista.appendChild(div);
     }
 
@@ -163,19 +156,19 @@
     }
 
     function actualizarUI(data) {
-        // ACTUALIZACIÓN DE TEXTOS EN EL PANEL
         document.getElementById('nombre-id').innerText = data.id;
         document.getElementById('vel').innerText = data.vel || "0";
-        document.getElementById('fec-val').innerText = data.fec || "--/--/--"; // <--- ESTO AHORA SÍ TIENE DONDE MOSTRARSE
-        document.getElementById('hor-val').innerText = data.hor || "--:--:--";
+        document.getElementById('fec-val').innerText = data.fec || "--/--/--"; // <--- MOSTRANDO FECHA REAL
+        document.getElementById('hor-val').innerText = data.hor || "--:--:--"; // <--- MOSTRANDO HORA REAL
         document.getElementById('btc').innerText = data.btc || "--";
         document.getElementById('btp').innerText = data.btp || "--";
         document.getElementById('sat').innerText = data.sat || "0";
+        document.getElementById('pts').innerText = flota[data.id] ? flota[data.id].coords.length : "0";
 
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}`)
             .then(r => r.json()).then(j => {
                 document.getElementById('direccion').innerText = j.display_name.split(',').slice(0,3).join(',');
-            }).catch(() => { document.getElementById('direccion').innerText = "Dirección no disponible"; });
+            });
     }
 </script>
 </body>
