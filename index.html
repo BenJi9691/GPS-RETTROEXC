@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Panel de Control GPS - Flota BenJi Pro</title>
+    <title>Panel GPS - Flota BenJi Pro + Reportes</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; background: #f4f7f6; font-family: 'Segoe UI', Tahoma, sans-serif; overflow: hidden; }
+        body { margin: 0; padding: 0; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
         
         #menu-toggle {
@@ -32,11 +33,19 @@
         .section-title { font-weight: bold; margin: 15px 0 8px 0; color: #2c3e50; border-bottom: 2px solid #e67e22; font-size: 0.85em; }
         
         .mode-switch { display: flex; background: #f0f0f0; padding: 4px; border-radius: 8px; margin-bottom: 10px; }
-        .mode-btn { flex: 1; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.75em; font-weight: bold; transition: 0.3s; }
+        .mode-btn { flex: 1; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.75em; font-weight: bold; }
         .mode-btn.active { background: #e67e22; color: white; }
 
+        .btn-excel {
+            width: 100%; background: #27ae60; color: white; border: none;
+            padding: 10px; border-radius: 8px; font-weight: bold;
+            cursor: pointer; margin-top: 10px; font-size: 0.8em;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-excel:hover { background: #219150; }
+
         .filter-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.85em; font-weight: 600; }
-        .filter-item input { width: 16px; height: 16px; margin-right: 10px; accent-color: #e67e22; cursor: pointer; }
+        .filter-item input { width: 16px; height: 16px; margin-right: 10px; accent-color: #e67e22; }
 
         #info-panel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -44,16 +53,10 @@
             padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             z-index: 1000;
         }
-        .header-panel { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .unit-title { display: flex; align-items: center; font-size: 1.1em; font-weight: bold; color: #2c3e50; }
-        #color-indicator { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 2px solid #fff; }
-        
         .grid-data { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
         .box { background: #f8f9fa; padding: 6px 8px; border-radius: 10px; border: 1px solid #edf0f2; }
         .label { color: #8a959e; font-size: 0.6em; text-transform: uppercase; font-weight: 800; display: block; }
         .value { font-weight: 700; font-size: 0.95em; color: #2c3e50; }
-        .sub-val { font-size: 0.7em; color: #7f8c8d; }
-
         .status-badge { font-size: 0.65em; background: #2ecc71; color: white; padding: 2px 8px; border-radius: 20px; font-weight: bold; }
         input[type="date"] { width: 90%; padding: 8px; border-radius: 8px; border: 1px solid #ddd; margin-top: 5px; }
     </style>
@@ -73,36 +76,25 @@
     <div id="hist-controls" style="display:none;">
         <div class="section-title">FECHA</div>
         <input type="date" id="input-fecha" onchange="cargarDatosHistorial()">
+        <button class="btn-excel" onclick="descargarExcel()">📊 DESCARGAR EXCEL</button>
     </div>
 
     <div class="section-title">UNIDADES</div>
-    <div class="filter-item">
-        <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)"> <strong>TODAS</strong>
-    </div>
     <div id="lista-vehiculos"></div>
 </div>
 
 <div id="info-panel">
-    <div class="header-panel">
-        <div class="unit-title">
-            <span id="color-indicator"></span> 
-            <span id="nombre-id">Cargando flota...</span>
-        </div>
+    <div class="header-panel" style="display:flex; justify-content:space-between;">
+        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:10px;height:10px;border-radius:50%;"></span> <span id="nombre-id">Iniciando...</span></div>
         <div id="status-flota" class="status-badge">ONLINE</div>
     </div>
-
     <div class="grid-data">
-        <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span> <span class="sub-val">km/h</span></div>
+        <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span> <span style="font-size:0.7em">km/h</span></div>
         <div class="box"><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
         <div class="box"><span class="label">Puntos Hoy</span><span id="puntos" class="value">0</span></div>
-        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span> <span class="sub-val">V</span></div>
-        <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span> <span class="sub-val">V</span></div>
+        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span></div>
+        <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span></div>
         <div class="box"><span class="label">Hora</span><span id="hor-val" class="value">--:--</span></div>
-    </div>
-
-    <div style="margin-top: 10px; display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 8px;">
-        <div><span class="label">Ubicación</span><span id="coords-text" style="font-size: 0.8em; font-weight: bold;">0.00, 0.00</span></div>
-        <div style="text-align: right;"><span class="label">Fecha</span><span id="fec-val" style="font-weight: bold; font-size: 0.8em;">--/--/--</span></div>
     </div>
 </div>
 
@@ -117,6 +109,7 @@
 
     let flota = {};
     let modoActual = 'rt';
+    let datosCargadosParaExcel = []; // Guardaremos los datos aquí para el Excel
 
     function toggleMenu() {
         const m = document.getElementById('filter-menu');
@@ -124,7 +117,7 @@
     }
 
     function colorPorId(id) {
-        const colores = ['#e67e22', '#9b59b6', '#2ecc71', '#3498db', '#f1c40f', '#e74c3c', '#1abc9c'];
+        const colores = ['#e67e22', '#9b59b6', '#2ecc71', '#3498db', '#f1c40f', '#e74c3c'];
         let hash = 0;
         for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
         return colores[Math.abs(hash) % colores.length];
@@ -137,18 +130,9 @@
         document.getElementById('hist-controls').style.display = (modo === 'hist') ? 'block' : 'none';
         
         limpiarMapa();
-        
         if (modo === 'rt') {
-            document.getElementById('status-flota').innerText = "ONLINE";
-            document.getElementById('status-flota').style.background = "#2ecc71";
-            // 1. Cargar lo que ya pasó hoy
             await cargarHistorialDia(); 
-            // 2. Escuchar lo nuevo
             escucharRT();
-        } else {
-            document.getElementById('status-flota').innerText = "HISTORIAL";
-            document.getElementById('status-flota').style.background = "#3498db";
-            db.ref('ultimo_estado').off();
         }
     }
 
@@ -159,27 +143,30 @@
             map.removeLayer(flota[id].puntosGroup);
         });
         flota = {};
+        datosCargadosParaExcel = [];
         document.getElementById('lista-vehiculos').innerHTML = '';
     }
 
     async function cargarHistorialDia(fechaManual = null) {
-        // Formato DD/MM/YYYY
         const fechaBusqueda = fechaManual || new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
         
         await db.ref('historial').once('value', (snapshot) => {
             snapshot.forEach((vehiculo) => {
                 vehiculo.forEach((punto) => {
                     const d = punto.val();
-                    if (d.fec === fechaBusqueda) procesarDato(d, true);
+                    if (d.fec === fechaBusqueda) {
+                        procesarDato(d, true);
+                        datosCargadosParaExcel.push(d); // Guardamos para el reporte
+                    }
                 });
             });
         });
     }
 
     function cargarDatosHistorial() {
-        const inputF = document.getElementById('input-fecha').value; // YYYY-MM-DD
+        const inputF = document.getElementById('input-fecha').value;
         if (!inputF) return;
-        const fechaFinal = inputF.split('-').reverse().join('/'); // DD/MM/YYYY
+        const fechaFinal = inputF.split('-').reverse().join('/');
         limpiarMapa();
         cargarHistorialDia(fechaFinal);
     }
@@ -207,7 +194,6 @@
             crearCheckEnLista(id);
         }
 
-        // Agregar coordenada si es nueva
         const ultima = flota[id].coords[flota[id].coords.length - 1];
         if (!ultima || ultima[0] !== pos[0] || ultima[1] !== pos[1]) {
             flota[id].coords.push(pos);
@@ -217,40 +203,20 @@
 
         if (!esPrecarga) {
             flota[id].marker.setLatLng(pos);
-            if (flota[id].visible) actualizarUI(data);
+            actualizarUI(data);
         }
     }
 
     function crearCheckEnLista(id) {
         const container = document.getElementById('lista-vehiculos');
-        if (document.getElementById(`check-${id}`)) return;
         const div = document.createElement('div');
         div.className = 'filter-item';
-        div.innerHTML = `<input type="checkbox" checked id="check-${id}"> <span>${id}</span>`;
+        div.innerHTML = `<input type="checkbox" checked> <span>${id}</span>`;
         div.querySelector('input').onchange = (e) => {
-            flota[id].visible = e.target.checked;
-            if (e.target.checked) {
-                flota[id].marker.addTo(map);
-                flota[id].polyline.addTo(map);
-                flota[id].puntosGroup.addTo(map);
-                map.panTo(flota[id].marker.getLatLng());
-            } else {
-                map.removeLayer(flota[id].marker);
-                map.removeLayer(flota[id].polyline);
-                map.removeLayer(flota[id].puntosGroup);
-            }
+            if (e.target.checked) { flota[id].marker.addTo(map); flota[id].polyline.addTo(map); }
+            else { map.removeLayer(flota[id].marker); map.removeLayer(flota[id].polyline); }
         };
         container.appendChild(div);
-    }
-
-    function toggleAll(checked) {
-        Object.keys(flota).forEach(id => {
-            const ck = document.getElementById(`check-${id}`);
-            if (ck && ck.checked !== checked) {
-                ck.checked = checked;
-                ck.dispatchEvent(new Event('change'));
-            }
-        });
     }
 
     function actualizarUI(data) {
@@ -262,11 +228,20 @@
         document.getElementById('btp').innerText = data.btp || "--";
         document.getElementById('fec-val').innerText = data.fec || "--";
         document.getElementById('hor-val').innerText = data.hor || "--";
-        document.getElementById('coords-text').innerText = `${parseFloat(data.lat).toFixed(6)}, ${parseFloat(data.lon).toFixed(6)}`;
         document.getElementById('puntos').innerText = flota[data.id].coords.length;
     }
 
-    // Inicio automático
+    function descargarExcel() {
+        if (datosCargadosParaExcel.length === 0) {
+            alert("No hay datos en esta fecha para descargar.");
+            return;
+        }
+        const ws = XLSX.utils.json_to_sheet(datosCargadosParaExcel);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Reporte GPS");
+        XLSX.writeFile(wb, `Reporte_Flota_${datosCargadosParaExcel[0].fec.replace(/\//g, '-')}.xlsx`);
+    }
+
     cambiarModo('rt');
 </script>
 </body>
