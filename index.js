@@ -1,55 +1,65 @@
 const mqtt = require('mqtt');
 const admin = require('firebase-admin');
+const http = require('http'); // Necesario para que Render no falle
 
-// 1. INICIO DE SESIÓN SEGURO
-try {
-    const pKey = process.env.FIREBASE_PRIVATE_KEY;
-    const cEmail = process.env.FIREBASE_CLIENT_EMAIL;
-
-    // Verificación de seguridad
-    if (!pKey || !cEmail) {
-        throw new Error("Faltan las variables en Render: Revisa la pestaña Environment.");
-    }
-
-    admin.initializeApp({
-        credential: admin.credential.cert({
-            projectId: "gps-retroexc",
-            clientEmail: cEmail,
-            // Esta línea limpia la llave para que Google la acepte sin errores
-            privateKey: pKey.replace(/\\n/g, '\n')
-        }),
-        databaseURL: "https://gps-retroexc-default-rtdb.firebaseio.com"
-    });
-
-    console.log("✅ ¡CONEXIÓN EXITOSA! El Robot BenJi está en línea.");
-} catch (error) {
-    console.error("❌ ERROR AL INICIAR:", error.message);
-    process.exit(1); 
-}
+// 1. CONFIGURACIÓN DE FIREBASE
+// Asegúrate de tener FIREBASE_CLIENT_EMAIL y FIREBASE_PRIVATE_KEY en Render
+admin.initializeApp({
+  credential: admin.credential.cert({
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    projectId: "gps-retroexc" 
+  }),
+  databaseURL: "https://gps-retroexc-default-rtdb.firebaseio.com"
+});
 
 const db = admin.database();
-const client = mqtt.connect('mqtt://broker.emqx.io:1883');
+const client = mqtt.connect('mqtt://broker.hivemq.com'); // Tu broker
 
 client.on('connect', () => {
-    client.subscribe('GPS-RETRO');
-    console.log("🚀 Escuchando vehículos en tiempo real...");
+  console.log("✅ ¡CONEXIÓN EXITOSA! El Robot BenJi está en línea.");
+  client.subscribe('tu_topico_gps/datos'); // <--- Asegúrate que sea el correcto
 });
 
 client.on('message', (topic, message) => {
-    try {
-        const data = JSON.parse(message.toString());
-        const id = data.id || "SIN-ID";
-        const ts = Date.now();
+  try {
+    const data = JSON.parse(message.toString());
+    const id = data.id;
+    const ts = Date.now();
 
-        // Guardamos en historial y ubicación actual
-        const updates = {};
-        updates[`/historial/${id}/${ts}`] = data;
-        updates[`/ultimo_estado/${id}`] = data;
+    // Guardar último estado y el historial
+    db.ref(`ultimo_estado/${id}`).set(data);
+    db.ref(`historial/${id}/${ts}`).set(data);
 
-        db.ref().update(updates)
-            .then(() => console.log(`📍 Posición de ${id} recibida.`))
-            .catch(e => console.error("Error Firebase:", e.message));
-    } catch (e) {
-        console.error("Error en datos MQTT:", e.message);
+    console.log(`📍 Posición recibida de: ${id}`);
+
+    // Limpieza automática: Una probabilidad de 1% cada vez que llega un mensaje
+    if (Math.random() < 0.01) {
+        const limiteSieteDias = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        db.ref('historial').once('value', (snap) => {
+            snap.forEach((veh) => {
+                const puntos = veh.val();
+                Object.keys(puntos).forEach((key) => {
+                    if (parseInt(key) < limiteSieteDias) {
+                        db.ref(`historial/${veh.key}/${key}`).remove();
+                    }
+                });
+            });
+        });
     }
+  } catch (e) {
+    console.log("⚠️ Error en formato JSON:", e.message);
+  }
+});
+
+// 2. EL TRUCO PARA RENDER (Evita el error "No open ports detected")
+// Esto crea una mini-página web que solo dice "OK" para que Render no apague el robot.
+const server = http.createServer((req, res) => {
+  res.writeHead(200, {'Content-Type': 'text/plain'});
+  res.end('Robot BenJi funcionando correctamente\n');
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`🚀 Servidor de mantenimiento escuchando en puerto ${PORT}`);
 });
