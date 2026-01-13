@@ -3,155 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>BenJi GPS - Sistema Total</title>
+    <title>BenJi GPS - 100% Funcional</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: #f4f7f6; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
         
-        /* MENÚ LATERAL DERECHO */
-        #panel-derecho { position: fixed; top: 0; right: 0; width: 320px; height: 100vh; background: white; z-index: 1000; box-shadow: -5px 0 20px rgba(0,0,0,0.15); display: flex; flex-direction: column; }
+        /* MENÚ LATERAL MEJORADO */
+        #menu-toggle { position: absolute; top: 15px; right: 15px; width: 45px; height: 45px; background: #e67e22; color: white; border-radius: 12px; display: flex; justify-content: center; align-items: center; z-index: 1002; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        #filter-menu { position: absolute; top: 70px; right: 15px; width: 250px; background: white; padding: 15px; border-radius: 15px; z-index: 1001; display: none; box-shadow: 0 5px 25px rgba(0,0,0,0.2); }
+
+        .section-title { font-weight: 800; font-size: 0.75em; color: #7f8c8d; text-transform: uppercase; margin-bottom: 10px; border-bottom: 2px solid #f39c12; }
         
-        /* BOTÓN HAMBURGUESA */
-        #menu-toggle { position: absolute; top: 20px; right: 20px; width: 50px; height: 50px; background: #ff6b35; border-radius: 10px; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 1001; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        #menu-toggle span { color: white; font-size: 24px; font-weight: bold; }
-        
-        /* HEADER DEL PANEL */
-        .panel-header { background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 20px; color: white; }
-        .panel-header h2 { font-size: 16px; font-weight: 700; margin-bottom: 15px; }
-        
-        /* BOTONES DE MODO */
-        .modo-btns { display: flex; gap: 10px; margin-bottom: 15px; }
-        .modo-btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.3s; }
-        .modo-btn.active { background: white; color: #ff6b35; }
-        .modo-btn:not(.active) { background: rgba(255,255,255,0.2); color: white; }
-        
-        /* SECCIÓN UNIDADES */
-        .unidades-section { padding: 20px; overflow-y: auto; flex: 1; }
-        .unidades-title { font-size: 12px; font-weight: 700; color: #999; text-transform: uppercase; margin-bottom: 15px; letter-spacing: 0.5px; }
-        
-        /* CHECKBOX TODAS */
-        .check-todas { background: #fff8f0; border: 2px solid #ffd4a3; border-radius: 10px; padding: 12px 15px; margin-bottom: 15px; display: flex; align-items: center; cursor: pointer; transition: all 0.3s; }
-        .check-todas:hover { background: #ffe8cc; }
-        .check-todas input { width: 20px; height: 20px; margin-right: 12px; cursor: pointer; accent-color: #ff6b35; }
-        .check-todas label { font-weight: 700; color: #ff6b35; cursor: pointer; font-size: 14px; }
-        
-        /* ITEMS DE VEHÍCULOS */
-        .vehiculo-item { display: flex; align-items: center; padding: 10px 5px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: all 0.2s; }
-        .vehiculo-item:hover { background: #f8f8f8; }
-        .vehiculo-item input { width: 20px; height: 20px; margin-right: 12px; cursor: pointer; accent-color: #ff6b35; }
-        .vehiculo-item label { font-weight: 600; font-size: 14px; color: #333; cursor: pointer; flex: 1; }
-        
-        /* PANEL DE INFORMACIÓN INFERIOR */
-        #info-card { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 450px; background: white; border-radius: 20px; padding: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 999; }
-        
-        .info-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 12px; border-bottom: 2px solid #f0f0f0; }
-        .info-title { display: flex; align-items: center; }
-        .punto-estado { width: 14px; height: 14px; border-radius: 50%; background: #ff6b35; margin-right: 10px; box-shadow: 0 0 10px rgba(255,107,53,0.5); }
-        .nombre-vehiculo { font-weight: 800; font-size: 18px; color: #333; }
-        .badge-online { background: #00c853; color: white; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; }
-        
-        /* GRID DE DATOS */
-        .datos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 15px; }
-        .dato-box { background: #f8f9fa; border-radius: 12px; padding: 12px 8px; text-align: center; border: 1px solid #e9ecef; }
-        .dato-box.highlight { background: #fff9e6; border-color: #ffd54f; }
-        .dato-label { display: block; font-size: 10px; color: #999; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
-        .dato-valor { font-size: 18px; font-weight: 700; color: #333; }
-        .dato-unidad { font-size: 11px; color: #666; margin-left: 2px; }
-        
-        .dato-box.full { grid-column: span 3; background: #f0f4f8; }
-        
-        /* DIRECCIÓN */
-        .direccion-box { background: #f8f9fa; border-radius: 10px; padding: 12px; }
-        .direccion-label { font-size: 10px; color: #999; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
-        .direccion-texto { font-size: 13px; color: #555; font-weight: 600; line-height: 1.4; }
-        
-        /* RESPONSIVE */
-        @media (max-width: 768px) {
-            #panel-derecho { width: 100%; transform: translateX(100%); transition: transform 0.3s; }
-            #panel-derecho.open { transform: translateX(0); }
-            #info-card { width: 95%; max-width: none; }
-        }
+        /* BOTÓN TODAS REAL */
+        #btn-seleccionar-todas { background: #fff4e5; padding: 10px; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; border: 1px solid #ffcc80; cursor: pointer; transition: 0.3s; }
+        #btn-seleccionar-todas:hover { background: #ffe0b2; }
+        .filter-item { display: flex; align-items: center; padding: 6px 0; font-size: 0.9em; font-weight: 600; }
+        .filter-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: #e67e22; }
+
+        /* PANEL DE INFO CON 7 ESPACIOS (INCLUYE FECHA) */
+        #info-panel { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 94%; max-width: 500px; background: white; padding: 15px; border-radius: 20px; z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .grid-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+        .box { background: #f8f9fa; padding: 10px 5px; border-radius: 12px; border: 1px solid #eee; text-align: center; }
+        .box.amarillo { background: #fff9c4; border: 1px solid #fbc02d; }
+        .label { display: block; font-size: 0.55em; color: #95a5a6; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; }
+        .value { font-size: 0.95em; font-weight: 700; color: #2c3e50; }
+        .status { font-size: 0.6em; background: #2ecc71; color: white; padding: 4px 12px; border-radius: 12px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
+<div id="menu-toggle" onclick="toggleMenu()">☰</div>
 
-<div id="menu-toggle" onclick="togglePanel()">
-    <span>☰</span>
+<div id="filter-menu">
+    <div class="section-title">UNIDADES</div>
+    <div id="btn-seleccionar-todas" onclick="clicEnTodas()">
+        <input type="checkbox" id="check-all-master" checked>
+        <span style="font-weight: 800; color: #d35400; margin-left: 10px;">TODAS</span>
+    </div>
+    <div id="lista-vehiculos"></div>
 </div>
 
-<div id="panel-derecho">
-    <div class="panel-header">
-        <h2>MODO DE VISTA</h2>
-        <div class="modo-btns">
-            <button class="modo-btn active">TIEMPO REAL</button>
-            <button class="modo-btn">HISTORIAL</button>
+<div id="info-panel">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <span id="color-indicator" style="display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:8px; background: #e67e22;"></span>
+            <span id="nombre-id" style="font-weight:800; font-size:1.1em;">Seleccione Unidad</span>
         </div>
-        <div class="unidades-title">UNIDADES</div>
+        <span class="status">ONLINE</span>
     </div>
-    
-    <div class="unidades-section">
-        <div class="check-todas" onclick="toggleTodas()">
-            <input type="checkbox" id="check-all" checked onclick="event.stopPropagation(); toggleTodas();">
-            <label onclick="event.stopPropagation(); toggleTodas();">SELECCIONAR TODAS</label>
-        </div>
-        <div id="lista-vehiculos"></div>
-    </div>
-</div>
 
-<div id="info-card">
-    <div class="info-header">
-        <div class="info-title">
-            <div class="punto-estado"></div>
-            <span class="nombre-vehiculo" id="nombre-vehiculo">VEHÍCULO-81</span>
-        </div>
-        <span class="badge-online">ONLINE</span>
+    <div class="grid-info">
+        <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span><small> km/h</small></div>
+        
+        <div class="box amarillo"><span class="label">Fecha</span><span id="fec-val" class="value">--/--/--</span></div>
+        <div class="box amarillo"><span class="label">Hora</span><span id="hor-val" class="value">--:--:--</span></div>
+        
+        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span><small>V</small></div>
+        <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span><small>V</small></div>
+        <div class="box"><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
+        
+        <div class="box" style="grid-column: span 3; background: #f0f4f8;"><span class="label">Puntos Hoy</span><span id="pts-count" class="value">0</span></div>
     </div>
     
-    <div class="datos-grid">
-        <div class="dato-box">
-            <span class="dato-label">Velocidad</span>
-            <span class="dato-valor" id="velocidad">44</span>
-            <span class="dato-unidad">km/h</span>
-        </div>
-        <div class="dato-box">
-            <span class="dato-label">Satélites</span>
-            <span class="dato-valor" id="satelites">10</span>
-        </div>
-        <div class="dato-box highlight">
-            <span class="dato-label">Puntos Hoy</span>
-            <span class="dato-valor" id="puntos-hoy">149</span>
-        </div>
-        <div class="dato-box">
-            <span class="dato-label">Bat. Carro</span>
-            <span class="dato-valor" id="bat-carro">12.8</span>
-            <span class="dato-unidad">V</span>
-        </div>
-        <div class="dato-box">
-            <span class="dato-label">Bat. GPS</span>
-            <span class="dato-valor" id="bat-gps">4.1</span>
-            <span class="dato-unidad">V</span>
-        </div>
-        <div class="dato-box highlight">
-            <span class="dato-label">Hora</span>
-            <span class="dato-valor" id="hora">11:24:55</span>
-        </div>
-        <div class="dato-box full">
-            <span class="dato-label">Fecha</span>
-            <span class="dato-valor" id="fecha">13/01/2026</span>
-        </div>
-    </div>
-    
-    <div class="direccion-box">
-        <div class="direccion-label">Dirección Actual</div>
-        <div class="direccion-texto" id="direccion">569, Calle Sebastian Lorente, Trujillo</div>
+    <div style="margin-top:10px; border-top:1px solid #eee; padding-top:10px;">
+        <span class="label">Dirección Aproximada</span>
+        <div id="direccion" style="font-size:0.8em; color:#34495e; font-weight:600;">Cargando ubicación...</div>
     </div>
 </div>
 
@@ -167,115 +89,88 @@
     let flota = {};
     let unidadEnFoco = null;
 
-    function togglePanel() {
-        const panel = document.getElementById('panel-derecho');
-        panel.classList.toggle('open');
+    function toggleMenu() {
+        const m = document.getElementById('filter-menu');
+        m.style.display = (m.style.display === 'block') ? 'none' : 'block';
     }
 
-    function toggleTodas() {
-        const master = document.getElementById('check-all');
+    // LÓGICA DEL BOTÓN TODAS
+    function clicEnTodas() {
+        const master = document.getElementById('check-all-master');
         master.checked = !master.checked;
-        const checks = document.querySelectorAll('.chk-vehiculo');
-        checks.forEach(c => {
+        const checkboxes = document.querySelectorAll('.chk-unidad');
+        checkboxes.forEach(c => {
             c.checked = master.checked;
-            actualizarVisibilidad(c.dataset.id, c.checked);
+            gestionarVisibilidad(c.dataset.id, c.checked);
         });
     }
 
-    function actualizarVisibilidad(id, visible) {
-        if (flota[id]) {
-            if (visible) {
-                flota[id].marker.addTo(map);
-                flota[id].polyline.addTo(map);
-            } else {
-                map.removeLayer(flota[id].marker);
-                map.removeLayer(flota[id].polyline);
-            }
+    function gestionarVisibilidad(id, mostrar) {
+        if (mostrar) {
+            flota[id].marker.addTo(map);
+            flota[id].linea.addTo(map);
+        } else {
+            map.removeLayer(flota[id].marker);
+            map.removeLayer(flota[id].linea);
         }
     }
 
-    db.ref('ultimo_estado').on('child_added', (s) => procesar(s.val()));
-    db.ref('ultimo_estado').on('child_changed', (s) => procesar(s.val()));
+    db.ref('ultimo_estado').on('child_added', (s) => recibirDatos(s.val()));
+    db.ref('ultimo_estado').on('child_changed', (s) => recibirDatos(s.val()));
 
-    function procesar(data) {
+    function recibirDatos(data) {
         const id = data.id;
         const pos = [parseFloat(data.lat), parseFloat(data.lon)];
         
         if (!flota[id]) {
             flota[id] = {
-                marker: L.circleMarker(pos, { 
-                    radius: 12, 
-                    fillColor: '#ff6b35', 
-                    color: 'white', 
-                    weight: 3, 
-                    fillOpacity: 1 
-                }).addTo(map),
-                polyline: L.polyline([], { color: '#ff6b35', weight: 4, opacity: 0.7 }).addTo(map),
-                coords: []
+                marker: L.circleMarker(pos, { radius: 10, fillColor: '#e67e22', color: 'white', weight: 2, fillOpacity: 1 }).addTo(map),
+                linea: L.polyline([], { color: '#e67e22', weight: 3 }).addTo(map),
+                recorrido: []
             };
-            agregarALista(id);
+            crearFilaLista(id);
         }
 
         flota[id].marker.setLatLng(pos).bringToFront();
-        flota[id].coords.push(pos);
-        flota[id].polyline.setLatLngs(flota[id].coords);
+        flota[id].recorrido.push(pos);
+        flota[id].linea.setLatLngs(flota[id].recorrido);
 
         if (unidadEnFoco === id) {
-            actualizarUI(data);
+            actualizarInterfaz(data);
             map.panTo(pos);
-        } else if (!unidadEnFoco && Object.keys(flota).length === 1) {
-            unidadEnFoco = id;
-            actualizarUI(data);
         }
     }
 
-    function agregarALista(id) {
+    function crearFilaLista(id) {
         const lista = document.getElementById('lista-vehiculos');
-        if (document.getElementById(`item-${id}`)) return;
-        
         const div = document.createElement('div');
-        div.className = 'vehiculo-item';
-        div.id = `item-${id}`;
-        div.innerHTML = `
-            <input type="checkbox" checked class="chk-vehiculo" data-id="${id}">
-            <label>${id}</label>
-        `;
-        
-        div.querySelector('input').onchange = (e) => {
-            e.stopPropagation();
-            actualizarVisibilidad(id, e.target.checked);
-        };
-        
-        div.onclick = () => enfocarVehiculo(id);
+        div.className = 'filter-item';
+        div.innerHTML = `<input type="checkbox" checked class="chk-unidad" data-id="${id}"> <span onclick="enfocar('${id}')">${id}</span>`;
+        div.querySelector('input').onchange = (e) => gestionarVisibilidad(id, e.target.checked);
         lista.appendChild(div);
     }
 
-    function enfocarVehiculo(id) {
+    function enfocar(id) {
         unidadEnFoco = id;
-        db.ref(`ultimo_estado/${id}`).once('value', s => actualizarUI(s.val()));
-        if (flota[id]) {
-            map.flyTo(flota[id].marker.getLatLng(), 16);
-        }
-        if (window.innerWidth < 768) togglePanel();
+        db.ref(`ultimo_estado/${id}`).once('value', s => actualizarInterfaz(s.val()));
+        map.flyTo(flota[id].marker.getLatLng(), 16);
+        if (window.innerWidth < 768) toggleMenu();
     }
 
-    function actualizarUI(data) {
-        document.getElementById('nombre-vehiculo').innerText = data.id;
-        document.getElementById('velocidad').innerText = data.vel || "0";
-        document.getElementById('satelites').innerText = data.sat || "0";
-        document.getElementById('puntos-hoy').innerText = flota[data.id] ? flota[data.id].coords.length : "0";
-        document.getElementById('bat-carro').innerText = data.btc || "--";
-        document.getElementById('bat-gps').innerText = data.btp || "--";
-        document.getElementById('hora').innerText = data.hor || "--:--:--";
-        document.getElementById('fecha').innerText = data.fec || "--/--/--";
+    function actualizarInterfaz(data) {
+        // AQUÍ SE ASIGNAN LOS DATOS A LOS NUEVOS ELEMENTOS
+        document.getElementById('nombre-id').innerText = data.id;
+        document.getElementById('vel').innerText = data.vel || "0";
+        document.getElementById('fec-val').innerText = data.fec || "--/--/--"; // <--- FECHA
+        document.getElementById('hor-val').innerText = data.hor || "--:--:--"; // <--- HORA
+        document.getElementById('btc').innerText = data.btc || "--";
+        document.getElementById('btp').innerText = data.btp || "--";
+        document.getElementById('sat').innerText = data.sat || "0";
+        document.getElementById('pts-count').innerText = flota[data.id] ? flota[data.id].recorrido.length : "0";
 
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}`)
-            .then(r => r.json())
-            .then(j => {
-                document.getElementById('direccion').innerText = j.display_name.split(',').slice(0, 3).join(', ');
-            })
-            .catch(() => {
-                document.getElementById('direccion').innerText = 'Ubicación no disponible';
+            .then(r => r.json()).then(j => {
+                document.getElementById('direccion').innerText = j.display_name.split(',').slice(0,3).join(',');
             });
     }
 </script>
