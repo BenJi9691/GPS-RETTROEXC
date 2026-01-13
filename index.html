@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GPS BenJi - RealTime Premium</title>
+    <title>GPS BenJi - 100% RealTime</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -13,39 +13,16 @@
     <style>
         body { margin: 0; padding: 0; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
-        
-        #menu-toggle {
-            position: absolute; top: 15px; right: 15px;
-            width: 45px; height: 45px; background: #e67e22;
-            color: white; border-radius: 12px; display: flex;
-            justify-content: center; align-items: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            z-index: 1002; cursor: pointer; font-size: 22px;
-        }
-
-        #filter-menu {
-            position: absolute; top: 70px; right: 15px;
-            width: 260px; background: white; padding: 15px; border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-            z-index: 1001; display: none; max-height: 70vh; overflow-y: auto; border: 1px solid #ddd;
-        }
-
+        #menu-toggle { position: absolute; top: 15px; right: 15px; width: 45px; height: 45px; background: #e67e22; color: white; border-radius: 12px; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1002; cursor: pointer; font-size: 22px; }
+        #filter-menu { position: absolute; top: 70px; right: 15px; width: 260px; background: white; padding: 15px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); z-index: 1001; display: none; max-height: 70vh; overflow-y: auto; border: 1px solid #ddd; }
         .section-title { font-weight: bold; margin: 15px 0 8px 0; color: #2c3e50; border-bottom: 2px solid #e67e22; font-size: 0.85em; }
         .mode-switch { display: flex; background: #f0f0f0; padding: 4px; border-radius: 8px; margin-bottom: 10px; }
         .mode-btn { flex: 1; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.75em; font-weight: bold; }
         .mode-btn.active { background: #e67e22; color: white; }
-
         .btn-excel { width: 100%; background: #27ae60; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 0.8em; }
-
         .filter-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.85em; font-weight: 600; cursor: pointer; }
         .filter-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: #e67e22; }
-
-        #info-panel {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 94%; max-width: 480px; background: white;
-            padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            z-index: 1000;
-        }
+        #info-panel { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 94%; max-width: 480px; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1000; }
         .grid-data { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
         .box { background: #f8f9fa; padding: 6px 8px; border-radius: 10px; border: 1px solid #edf0f2; }
         .label { color: #8a959e; font-size: 0.6em; text-transform: uppercase; font-weight: 800; display: block; }
@@ -76,8 +53,8 @@
 
 <div id="info-panel">
     <div style="display:flex; justify-content:space-between; margin-bottom: 10px; align-items: center;">
-        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid white;"></span> <span id="nombre-id">Sincronizando...</span></div>
-        <div id="status-flota" class="status-badge">ONLINE</div>
+        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid white;"></span> <span id="nombre-id">Iniciando...</span></div>
+        <div id="status-flota" class="status-badge">CONECTADO</div>
     </div>
     <div class="grid-data">
         <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span> <span style="font-size:0.7em">km/h</span></div>
@@ -88,8 +65,8 @@
         <div class="box"><span class="label">Hora</span><span id="hor-val" class="value">--:--</span></div>
     </div>
     <div class="address-box">
-        <span class="label">Dirección Actual</span>
-        <div id="direccion" style="font-size: 0.85em; font-weight: 600; color: #34495e;">Buscando...</div>
+        <span class="label">Última Ubicación Detectada</span>
+        <div id="direccion" style="font-size: 0.85em; font-weight: 600; color: #34495e;">Obteniendo...</div>
     </div>
 </div>
 
@@ -118,13 +95,13 @@
         return colores[Math.abs(hash) % colores.length];
     }
 
+    // CORRECCIÓN 2: Escucha constante para actualización automática real
     function escucharRT() {
-        // ACTUALIZACIÓN EN TIEMPO REAL: Firebase avisa y el código responde solo
         db.ref('ultimo_estado').on('child_changed', (snapshot) => {
             const data = snapshot.val();
             if (modoActual === 'rt') {
-                procesarDato(data, false);
-                // Si es la unidad activa, actualizamos el panel automáticamente
+                // Forzamos que el marcador se mueva a la punta
+                moverMarcadorAPunta(data);
                 if (unidadEnFoco === data.id) {
                     actualizarUI(data);
                     map.panTo([parseFloat(data.lat), parseFloat(data.lon)]);
@@ -132,8 +109,34 @@
             }
         });
         db.ref('ultimo_estado').on('child_added', (snapshot) => {
-            if (modoActual === 'rt') procesarDato(snapshot.val(), false);
+            if (modoActual === 'rt') moverMarcadorAPunta(snapshot.val());
         });
+    }
+
+    function moverMarcadorAPunta(data) {
+        const id = data.id;
+        const pos = [parseFloat(data.lat), parseFloat(data.lon)];
+        const color = colorPorId(id);
+
+        if (!flota[id]) {
+            flota[id] = { coords: [], 
+                marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(map),
+                polyline: L.polyline([], {color: color, weight: 3, opacity: 0.7}).addTo(map),
+                puntosGroup: L.layerGroup().addTo(map)
+            };
+            crearItemLista(id);
+        }
+
+        // CORRECCIÓN 1: El marcador (el punto grande) SIEMPRE salta a la posición más reciente de Firebase
+        flota[id].marker.setLatLng(pos).bringToFront();
+        
+        // Agregar a la línea de ruta si es una posición nueva
+        const ult = flota[id].coords[flota[id].coords.length - 1];
+        if (!ult || ult[0] !== pos[0] || ult[1] !== pos[1]) {
+            flota[id].coords.push(pos);
+            flota[id].polyline.setLatLngs(flota[id].coords);
+            L.circleMarker(pos, { radius: 2, color: color, stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
+        }
     }
 
     async function cambiarModo(modo) {
@@ -161,46 +164,31 @@
 
     async function cargarHistorialDia(fechaManual = null) {
         const hoy = fechaManual || new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const snapshot = await db.ref('historial').once('value');
-        snapshot.forEach((veh) => {
+        const snap = await db.ref('historial').once('value');
+        snap.forEach((veh) => {
             veh.forEach((pto) => {
                 const d = pto.val();
-                if (d.fec === hoy) procesarDato(d, true);
+                if (d.fec === hoy) {
+                    const id = d.id;
+                    const pos = [parseFloat(d.lat), parseFloat(d.lon)];
+                    if (!flota[id]) {
+                        flota[id] = { coords: [], 
+                            marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: colorPorId(id), fillOpacity: 1 }).addTo(map),
+                            polyline: L.polyline([], {color: colorPorId(id), weight: 3, opacity: 0.7}).addTo(map),
+                            puntosGroup: L.layerGroup().addTo(map)
+                        };
+                        crearItemLista(id);
+                    }
+                    flota[id].coords.push(pos);
+                    flota[id].polyline.setLatLngs(flota[id].coords);
+                    L.circleMarker(pos, { radius: 2, color: colorPorId(id), stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
+                }
             });
         });
-    }
-
-    function procesarDato(data, esPrecarga) {
-        const id = data.id;
-        const pos = [parseFloat(data.lat), parseFloat(data.lon)];
-        const color = colorPorId(id);
-
-        if (!flota[id]) {
-            flota[id] = { coords: [], 
-                marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(map),
-                polyline: L.polyline([], {color: color, weight: 3, opacity: 0.7}).addTo(map),
-                puntosGroup: L.layerGroup().addTo(map)
-            };
-            crearItemLista(id);
-        }
-
-        // AGREGAR A LA RUTA (Historial)
-        const ult = flota[id].coords[flota[id].coords.length - 1];
-        if (!ult || ult[0] !== pos[0] || ult[1] !== pos[1]) {
-            flota[id].coords.push(pos);
-            flota[id].polyline.setLatLngs(flota[id].coords);
-            L.circleMarker(pos, { radius: 2, color: color, stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
-        }
-
-        // SOLUCIÓN OBSERVACIÓN 1: El marcador (el punto grande) SIEMPRE va a la posición más reciente
-        if (!esPrecarga) {
-            flota[id].marker.setLatLng(pos).bringToFront();
-        }
-
-        // Si es el primer dato real, lo fijamos como unidad en foco
-        if (!esPrecarga && !unidadEnFoco) {
-            enfocarUnidad(id);
-        }
+        
+        // Al terminar el historial, pedimos la posición REAL de cada uno para mover el punto al final
+        const actualSnap = await db.ref('ultimo_estado').once('value');
+        actualSnap.forEach(s => moverMarcadorAPunta(s.val()));
     }
 
     function crearItemLista(id) {
@@ -222,15 +210,11 @@
         unidadEnFoco = id;
         const p = flota[id].marker.getLatLng();
         map.flyTo(p, 16);
-        // Pedir el último dato conocido para llenar el panel de inmediato
-        db.ref(`ultimo_estado/${id}`).once('value', (s) => { 
-            if (s.exists()) actualizarUI(s.val()); 
-        });
+        db.ref(`ultimo_estado/${id}`).once('value', (s) => { if (s.exists()) actualizarUI(s.val()); });
         if (window.innerWidth < 768) toggleMenu();
     }
 
     async function actualizarUI(data) {
-        // SOLUCIÓN OBSERVACIÓN 2: Actualización sin clics
         document.getElementById('nombre-id').innerText = data.id;
         document.getElementById('color-indicator').style.background = colorPorId(data.id);
         document.getElementById('vel').innerText = data.vel || "0";
@@ -243,11 +227,8 @@
         try {
             const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}&zoom=18`);
             const json = await resp.json();
-            const calle = json.display_name.split(',').slice(0, 3).join(',');
-            document.getElementById('direccion').innerText = calle;
-        } catch (e) { 
-            document.getElementById('direccion').innerText = "Dirección no disponible"; 
-        }
+            document.getElementById('direccion').innerText = json.display_name.split(',').slice(0, 3).join(',');
+        } catch (e) { document.getElementById('direccion').innerText = "Buscando calle..."; }
     }
 
     function cargarDatosHistorial() {
