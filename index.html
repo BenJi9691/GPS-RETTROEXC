@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GPS BenJi - 100% RealTime</title>
+    <title>Panel GPS BenJi - 100% Funcional</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -13,20 +13,43 @@
     <style>
         body { margin: 0; padding: 0; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
-        #menu-toggle { position: absolute; top: 15px; right: 15px; width: 45px; height: 45px; background: #e67e22; color: white; border-radius: 12px; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1002; cursor: pointer; font-size: 22px; }
-        #filter-menu { position: absolute; top: 70px; right: 15px; width: 260px; background: white; padding: 15px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); z-index: 1001; display: none; max-height: 70vh; overflow-y: auto; border: 1px solid #ddd; }
+        
+        #menu-toggle {
+            position: absolute; top: 15px; right: 15px;
+            width: 45px; height: 45px; background: #e67e22;
+            color: white; border-radius: 12px; display: flex;
+            justify-content: center; align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 1002; cursor: pointer; font-size: 22px;
+        }
+
+        #filter-menu {
+            position: absolute; top: 70px; right: 15px;
+            width: 260px; background: white; padding: 15px; border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            z-index: 1001; display: none; max-height: 70vh; overflow-y: auto; border: 1px solid #ddd;
+        }
+
         .section-title { font-weight: bold; margin: 15px 0 8px 0; color: #2c3e50; border-bottom: 2px solid #e67e22; font-size: 0.85em; }
         .mode-switch { display: flex; background: #f0f0f0; padding: 4px; border-radius: 8px; margin-bottom: 10px; }
         .mode-btn { flex: 1; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.75em; font-weight: bold; }
         .mode-btn.active { background: #e67e22; color: white; }
+
         .btn-excel { width: 100%; background: #27ae60; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 0.8em; }
+
         .filter-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.85em; font-weight: 600; cursor: pointer; }
         .filter-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: #e67e22; }
-        #info-panel { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 94%; max-width: 480px; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1000; }
+
+        #info-panel {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 94%; max-width: 500px; background: white;
+            padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
         .grid-data { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
         .box { background: #f8f9fa; padding: 6px 8px; border-radius: 10px; border: 1px solid #edf0f2; }
-        .label { color: #8a959e; font-size: 0.6em; text-transform: uppercase; font-weight: 800; display: block; }
-        .value { font-weight: 700; font-size: 0.95em; color: #2c3e50; }
+        .label { color: #8a959e; font-size: 0.55em; text-transform: uppercase; font-weight: 800; display: block; }
+        .value { font-weight: 700; font-size: 0.9em; color: #2c3e50; }
         .address-box { border-top: 1px solid #eee; padding-top: 8px; margin-top: 5px; }
         .status-badge { font-size: 0.65em; background: #2ecc71; color: white; padding: 2px 8px; border-radius: 20px; font-weight: bold; }
     </style>
@@ -43,30 +66,33 @@
         <button id="btn-hist" class="mode-btn" onclick="cambiarModo('hist')">HISTORIAL</button>
     </div>
     <div id="hist-controls" style="display:none;">
-        <div class="section-title">FECHA</div>
+        <div class="section-title">FECHA HISTÓRICA</div>
         <input type="date" id="input-fecha" onchange="cargarDatosHistorial()">
         <button class="btn-excel" onclick="descargarExcel()">📊 DESCARGAR EXCEL</button>
     </div>
     <div class="section-title">UNIDADES</div>
+    <div class="filter-item">
+        <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)"> <span style="color:#e67e22">MOSTRAR TODAS</span>
+    </div>
     <div id="lista-vehiculos"></div>
 </div>
 
 <div id="info-panel">
     <div style="display:flex; justify-content:space-between; margin-bottom: 10px; align-items: center;">
-        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid white;"></span> <span id="nombre-id">Iniciando...</span></div>
-        <div id="status-flota" class="status-badge">CONECTADO</div>
+        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid white;"></span> <span id="nombre-id">Sincronizando...</span></div>
+        <div id="status-flota" class="status-badge">ONLINE</div>
     </div>
     <div class="grid-data">
         <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span> <span style="font-size:0.7em">km/h</span></div>
-        <div class="box"><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
+        <div class="box"><span class="label">Fecha</span><span id="fec-val" class="value">--/--/--</span></div>
+        <div class="box"><span class="label">Hora</span><span id="hor-val" class="value">--:--:--</span></div>
+        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span> <span style="font-size:0.7em">V</span></div>
+        <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span> <span style="font-size:0.7em">V</span></div>
         <div class="box"><span class="label">Puntos Hoy</span><span id="puntos" class="value">0</span></div>
-        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span></div>
-        <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span></div>
-        <div class="box"><span class="label">Hora</span><span id="hor-val" class="value">--:--</span></div>
     </div>
     <div class="address-box">
-        <span class="label">Última Ubicación Detectada</span>
-        <div id="direccion" style="font-size: 0.85em; font-weight: 600; color: #34495e;">Obteniendo...</div>
+        <span class="label">Ubicación Actual</span>
+        <div id="direccion" style="font-size: 0.85em; font-weight: 600; color: #34495e;">Cargando dirección...</div>
     </div>
 </div>
 
@@ -95,13 +121,11 @@
         return colores[Math.abs(hash) % colores.length];
     }
 
-    // CORRECCIÓN 2: Escucha constante para actualización automática real
     function escucharRT() {
         db.ref('ultimo_estado').on('child_changed', (snapshot) => {
             const data = snapshot.val();
             if (modoActual === 'rt') {
-                // Forzamos que el marcador se mueva a la punta
-                moverMarcadorAPunta(data);
+                procesarDato(data, false);
                 if (unidadEnFoco === data.id) {
                     actualizarUI(data);
                     map.panTo([parseFloat(data.lat), parseFloat(data.lon)]);
@@ -109,34 +133,8 @@
             }
         });
         db.ref('ultimo_estado').on('child_added', (snapshot) => {
-            if (modoActual === 'rt') moverMarcadorAPunta(snapshot.val());
+            if (modoActual === 'rt') procesarDato(snapshot.val(), false);
         });
-    }
-
-    function moverMarcadorAPunta(data) {
-        const id = data.id;
-        const pos = [parseFloat(data.lat), parseFloat(data.lon)];
-        const color = colorPorId(id);
-
-        if (!flota[id]) {
-            flota[id] = { coords: [], 
-                marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(map),
-                polyline: L.polyline([], {color: color, weight: 3, opacity: 0.7}).addTo(map),
-                puntosGroup: L.layerGroup().addTo(map)
-            };
-            crearItemLista(id);
-        }
-
-        // CORRECCIÓN 1: El marcador (el punto grande) SIEMPRE salta a la posición más reciente de Firebase
-        flota[id].marker.setLatLng(pos).bringToFront();
-        
-        // Agregar a la línea de ruta si es una posición nueva
-        const ult = flota[id].coords[flota[id].coords.length - 1];
-        if (!ult || ult[0] !== pos[0] || ult[1] !== pos[1]) {
-            flota[id].coords.push(pos);
-            flota[id].polyline.setLatLngs(flota[id].coords);
-            L.circleMarker(pos, { radius: 2, color: color, stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
-        }
     }
 
     async function cambiarModo(modo) {
@@ -164,40 +162,59 @@
 
     async function cargarHistorialDia(fechaManual = null) {
         const hoy = fechaManual || new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const snap = await db.ref('historial').once('value');
-        snap.forEach((veh) => {
+        const snapshot = await db.ref('historial').once('value');
+        
+        snapshot.forEach((veh) => {
             veh.forEach((pto) => {
                 const d = pto.val();
-                if (d.fec === hoy) {
-                    const id = d.id;
-                    const pos = [parseFloat(d.lat), parseFloat(d.lon)];
-                    if (!flota[id]) {
-                        flota[id] = { coords: [], 
-                            marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: colorPorId(id), fillOpacity: 1 }).addTo(map),
-                            polyline: L.polyline([], {color: colorPorId(id), weight: 3, opacity: 0.7}).addTo(map),
-                            puntosGroup: L.layerGroup().addTo(map)
-                        };
-                        crearItemLista(id);
-                    }
-                    flota[id].coords.push(pos);
-                    flota[id].polyline.setLatLngs(flota[id].coords);
-                    L.circleMarker(pos, { radius: 2, color: colorPorId(id), stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
-                }
+                if (d.fec === hoy) procesarDato(d, true);
             });
         });
-        
-        // Al terminar el historial, pedimos la posición REAL de cada uno para mover el punto al final
+
+        // Asegurar que el punto grande esté en el último estado real después de cargar historial
         const actualSnap = await db.ref('ultimo_estado').once('value');
-        actualSnap.forEach(s => moverMarcadorAPunta(s.val()));
+        actualSnap.forEach(s => { if(flota[s.val().id]) procesarDato(s.val(), false); });
+    }
+
+    function procesarDato(data, esPrecarga) {
+        const id = data.id;
+        const pos = [parseFloat(data.lat), parseFloat(data.lon)];
+        const color = colorPorId(id);
+
+        if (!flota[id]) {
+            flota[id] = { coords: [], 
+                marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(map),
+                polyline: L.polyline([], {color: color, weight: 3, opacity: 0.7}).addTo(map),
+                puntosGroup: L.layerGroup().addTo(map)
+            };
+            crearItemLista(id);
+        }
+
+        // El punto principal (marker) SIEMPRE va a la posición más reciente
+        if (!esPrecarga) {
+            flota[id].marker.setLatLng(pos).bringToFront();
+        }
+
+        // Registro de trayectoria
+        const ult = flota[id].coords[flota[id].coords.length - 1];
+        if (!ult || ult[0] !== pos[0] || ult[1] !== pos[1]) {
+            flota[id].coords.push(pos);
+            flota[id].polyline.setLatLngs(flota[id].coords);
+            L.circleMarker(pos, { radius: 2, color: color, stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
+        }
+
+        if (!esPrecarga && !unidadEnFoco) enfocarUnidad(id);
     }
 
     function crearItemLista(id) {
         const container = document.getElementById('lista-vehiculos');
         const div = document.createElement('div');
         div.className = 'filter-item';
-        div.innerHTML = `<input type="checkbox" checked id="chk-${id}"> <span onclick="enfocarUnidad('${id}')">${id}</span>`;
+        div.innerHTML = `<input type="checkbox" checked class="chk-unidad" id="chk-${id}"> <span onclick="enfocarUnidad('${id}')">${id}</span>`;
+        
         div.querySelector('input').onchange = (e) => {
-            if (e.target.checked) { 
+            const visible = e.target.checked;
+            if (visible) { 
                 flota[id].marker.addTo(map); flota[id].polyline.addTo(map); flota[id].puntosGroup.addTo(map); 
             } else { 
                 map.removeLayer(flota[id].marker); map.removeLayer(flota[id].polyline); map.removeLayer(flota[id].puntosGroup); 
@@ -218,17 +235,27 @@
         document.getElementById('nombre-id').innerText = data.id;
         document.getElementById('color-indicator').style.background = colorPorId(data.id);
         document.getElementById('vel').innerText = data.vel || "0";
-        document.getElementById('sat').innerText = data.sat || "10";
+        document.getElementById('fec-val').innerText = data.fec || "--/--/--";
+        document.getElementById('hor-val').innerText = data.hor || "--:--:--";
         document.getElementById('btp').innerText = data.btp || "--";
         document.getElementById('btc').innerText = data.btc || "--";
-        document.getElementById('hor-val').innerText = data.hor || "--";
         document.getElementById('puntos').innerText = flota[data.id] ? flota[data.id].coords.length : "0";
         
         try {
             const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}&zoom=18`);
             const json = await resp.json();
             document.getElementById('direccion').innerText = json.display_name.split(',').slice(0, 3).join(',');
-        } catch (e) { document.getElementById('direccion').innerText = "Buscando calle..."; }
+        } catch (e) { document.getElementById('direccion').innerText = "Dirección no disponible"; }
+    }
+
+    function toggleAll(c) {
+        const checkboxes = document.querySelectorAll('.chk-unidad');
+        checkboxes.forEach(cb => {
+            if (cb.checked !== c) {
+                cb.checked = c;
+                cb.dispatchEvent(new Event('change'));
+            }
+        });
     }
 
     function cargarDatosHistorial() {
@@ -246,7 +273,7 @@
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Reporte");
-        XLSX.writeFile(wb, "Reporte_BenJi.xlsx");
+        XLSX.writeFile(wb, "GPS_BenJi_Reporte.xlsx");
     }
 
     cambiarModo('rt');
