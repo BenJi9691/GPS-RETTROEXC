@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Panel GPS BenJi - 100% Funcional</title>
+    <title>GPS BenJi - Control Total</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -49,7 +49,7 @@
         .grid-data { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
         .box { background: #f8f9fa; padding: 6px 8px; border-radius: 10px; border: 1px solid #edf0f2; }
         .label { color: #8a959e; font-size: 0.55em; text-transform: uppercase; font-weight: 800; display: block; }
-        .value { font-weight: 700; font-size: 0.9em; color: #2c3e50; }
+        .value { font-weight: 700; font-size: 0.85em; color: #2c3e50; }
         .address-box { border-top: 1px solid #eee; padding-top: 8px; margin-top: 5px; }
         .status-badge { font-size: 0.65em; background: #2ecc71; color: white; padding: 2px 8px; border-radius: 20px; font-weight: bold; }
     </style>
@@ -66,13 +66,14 @@
         <button id="btn-hist" class="mode-btn" onclick="cambiarModo('hist')">HISTORIAL</button>
     </div>
     <div id="hist-controls" style="display:none;">
-        <div class="section-title">FECHA HISTÓRICA</div>
+        <div class="section-title">FILTRAR POR FECHA</div>
         <input type="date" id="input-fecha" onchange="cargarDatosHistorial()">
         <button class="btn-excel" onclick="descargarExcel()">📊 DESCARGAR EXCEL</button>
     </div>
     <div class="section-title">UNIDADES</div>
     <div class="filter-item">
-        <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)"> <span style="color:#e67e22">MOSTRAR TODAS</span>
+        <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)"> 
+        <span style="color:#e67e22; font-weight: bold;">TODAS LAS UNIDADES</span>
     </div>
     <div id="lista-vehiculos"></div>
 </div>
@@ -80,19 +81,19 @@
 <div id="info-panel">
     <div style="display:flex; justify-content:space-between; margin-bottom: 10px; align-items: center;">
         <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid white;"></span> <span id="nombre-id">Sincronizando...</span></div>
-        <div id="status-flota" class="status-badge">ONLINE</div>
+        <div id="status-flota" class="status-badge">EN LÍNEA</div>
     </div>
     <div class="grid-data">
         <div class="box"><span class="label">Velocidad</span><span id="vel" class="value">0</span> <span style="font-size:0.7em">km/h</span></div>
         <div class="box"><span class="label">Fecha</span><span id="fec-val" class="value">--/--/--</span></div>
         <div class="box"><span class="label">Hora</span><span id="hor-val" class="value">--:--:--</span></div>
-        <div class="box"><span class="label">Bat. Carro</span><span id="btc" class="value">--</span> <span style="font-size:0.7em">V</span></div>
-        <div class="box"><span class="label">Bat. GPS</span><span id="btp" class="value">--</span> <span style="font-size:0.7em">V</span></div>
-        <div class="box"><span class="label">Puntos Hoy</span><span id="puntos" class="value">0</span></div>
+        <div class="box"><span class="label">Satélites</span><span id="sat" class="value">0</span></div>
+        <div class="box"><span class="label">Batería GPS</span><span id="btp" class="value">--</span> <span style="font-size:0.7em">V</span></div>
+        <div class="box"><span class="label">Batería Carro</span><span id="btc" class="value">--</span> <span style="font-size:0.7em">V</span></div>
     </div>
     <div class="address-box">
-        <span class="label">Ubicación Actual</span>
-        <div id="direccion" style="font-size: 0.85em; font-weight: 600; color: #34495e;">Cargando dirección...</div>
+        <span class="label">Dirección Actual</span>
+        <div id="direccion" style="font-size: 0.8em; font-weight: 600; color: #34495e;">Obteniendo...</div>
     </div>
 </div>
 
@@ -125,7 +126,7 @@
         db.ref('ultimo_estado').on('child_changed', (snapshot) => {
             const data = snapshot.val();
             if (modoActual === 'rt') {
-                procesarDato(data, false);
+                actualizarPosicion(data, false);
                 if (unidadEnFoco === data.id) {
                     actualizarUI(data);
                     map.panTo([parseFloat(data.lat), parseFloat(data.lon)]);
@@ -133,7 +134,7 @@
             }
         });
         db.ref('ultimo_estado').on('child_added', (snapshot) => {
-            if (modoActual === 'rt') procesarDato(snapshot.val(), false);
+            if (modoActual === 'rt') actualizarPosicion(snapshot.val(), false);
         });
     }
 
@@ -162,27 +163,28 @@
 
     async function cargarHistorialDia(fechaManual = null) {
         const hoy = fechaManual || new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const snapshot = await db.ref('historial').once('value');
+        const snap = await db.ref('historial').once('value');
         
-        snapshot.forEach((veh) => {
+        snap.forEach((veh) => {
             veh.forEach((pto) => {
                 const d = pto.val();
-                if (d.fec === hoy) procesarDato(d, true);
+                if (d.fec === hoy) actualizarPosicion(d, true);
             });
         });
 
-        // Asegurar que el punto grande esté en el último estado real después de cargar historial
+        // Forzar marcador a la punta con el estado actual
         const actualSnap = await db.ref('ultimo_estado').once('value');
-        actualSnap.forEach(s => { if(flota[s.val().id]) procesarDato(s.val(), false); });
+        actualSnap.forEach(s => { if(flota[s.val().id]) actualizarPosicion(s.val(), false); });
     }
 
-    function procesarDato(data, esPrecarga) {
+    function actualizarPosicion(data, esPrecarga) {
         const id = data.id;
         const pos = [parseFloat(data.lat), parseFloat(data.lon)];
         const color = colorPorId(id);
 
         if (!flota[id]) {
-            flota[id] = { coords: [], 
+            flota[id] = { 
+                coords: [], 
                 marker: L.circleMarker(pos, { radius: 10, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(map),
                 polyline: L.polyline([], {color: color, weight: 3, opacity: 0.7}).addTo(map),
                 puntosGroup: L.layerGroup().addTo(map)
@@ -190,26 +192,27 @@
             crearItemLista(id);
         }
 
-        // El punto principal (marker) SIEMPRE va a la posición más reciente
+        // El marcador (punto grande) SIEMPRE se mueve a la posición más reciente
         if (!esPrecarga) {
             flota[id].marker.setLatLng(pos).bringToFront();
         }
 
-        // Registro de trayectoria
+        // Dibujo de trayectoria
         const ult = flota[id].coords[flota[id].coords.length - 1];
         if (!ult || ult[0] !== pos[0] || ult[1] !== pos[1]) {
             flota[id].coords.push(pos);
             flota[id].polyline.setLatLngs(flota[id].coords);
             L.circleMarker(pos, { radius: 2, color: color, stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
         }
-
-        if (!esPrecarga && !unidadEnFoco) enfocarUnidad(id);
     }
 
     function crearItemLista(id) {
         const container = document.getElementById('lista-vehiculos');
+        if (document.getElementById(`item-${id}`)) return;
+
         const div = document.createElement('div');
         div.className = 'filter-item';
+        div.id = `item-${id}`;
         div.innerHTML = `<input type="checkbox" checked class="chk-unidad" id="chk-${id}"> <span onclick="enfocarUnidad('${id}')">${id}</span>`;
         
         div.querySelector('input').onchange = (e) => {
@@ -235,17 +238,17 @@
         document.getElementById('nombre-id').innerText = data.id;
         document.getElementById('color-indicator').style.background = colorPorId(data.id);
         document.getElementById('vel').innerText = data.vel || "0";
-        document.getElementById('fec-val').innerText = data.fec || "--/--/--";
+        document.getElementById('fec-val').innerText = data.fec || "--/--/--"; // FECHA AGREGADA
         document.getElementById('hor-val').innerText = data.hor || "--:--:--";
+        document.getElementById('sat').innerText = data.sat || "0";
         document.getElementById('btp').innerText = data.btp || "--";
         document.getElementById('btc').innerText = data.btc || "--";
-        document.getElementById('puntos').innerText = flota[data.id] ? flota[data.id].coords.length : "0";
         
         try {
             const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}&zoom=18`);
             const json = await resp.json();
             document.getElementById('direccion').innerText = json.display_name.split(',').slice(0, 3).join(',');
-        } catch (e) { document.getElementById('direccion').innerText = "Dirección no disponible"; }
+        } catch (e) { document.getElementById('direccion').innerText = "Buscando dirección..."; }
     }
 
     function toggleAll(c) {
@@ -268,12 +271,12 @@
     function descargarExcel() {
         const data = [];
         Object.keys(flota).forEach(id => {
-            flota[id].coords.forEach(c => data.push({ Vehículo: id, Lat: c[0], Lon: c[1] }));
+            flota[id].coords.forEach(c => data.push({ Unidad: id, Latitud: c[0], Longitud: c[1] }));
         });
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Reporte");
-        XLSX.writeFile(wb, "GPS_BenJi_Reporte.xlsx");
+        XLSX.writeFile(wb, "BenJi_GPS_Reporte.xlsx");
     }
 
     cambiarModo('rt');
