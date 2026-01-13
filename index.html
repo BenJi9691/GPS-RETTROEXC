@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Panel GPS - BenJi RealTime</title>
+    <title>GPS BenJi - RealTime Premium</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -76,7 +76,7 @@
 
 <div id="info-panel">
     <div style="display:flex; justify-content:space-between; margin-bottom: 10px; align-items: center;">
-        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:10px;height:10px;border-radius:50%;"></span> <span id="nombre-id">Esperando datos...</span></div>
+        <div style="font-weight:bold;"><span id="color-indicator" style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid white;"></span> <span id="nombre-id">Sincronizando...</span></div>
         <div id="status-flota" class="status-badge">ONLINE</div>
     </div>
     <div class="grid-data">
@@ -88,8 +88,8 @@
         <div class="box"><span class="label">Hora</span><span id="hor-val" class="value">--:--</span></div>
     </div>
     <div class="address-box">
-        <span class="label">Dirección Aproximada</span>
-        <div id="direccion" style="font-size: 0.85em; font-weight: 600; color: #34495e;">Obteniendo ubicación...</div>
+        <span class="label">Dirección Actual</span>
+        <div id="direccion" style="font-size: 0.85em; font-weight: 600; color: #34495e;">Buscando...</div>
     </div>
 </div>
 
@@ -99,7 +99,7 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const map = L.map('map', { zoomControl: false }).setView([-8.115, -79.00], 13);
+    const map = L.map('map', { zoomControl: false }).setView([-8.0942, -79.0101], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     let flota = {};
@@ -118,13 +118,34 @@
         return colores[Math.abs(hash) % colores.length];
     }
 
+    function escucharRT() {
+        // ACTUALIZACIÓN EN TIEMPO REAL: Firebase avisa y el código responde solo
+        db.ref('ultimo_estado').on('child_changed', (snapshot) => {
+            const data = snapshot.val();
+            if (modoActual === 'rt') {
+                procesarDato(data, false);
+                // Si es la unidad activa, actualizamos el panel automáticamente
+                if (unidadEnFoco === data.id) {
+                    actualizarUI(data);
+                    map.panTo([parseFloat(data.lat), parseFloat(data.lon)]);
+                }
+            }
+        });
+        db.ref('ultimo_estado').on('child_added', (snapshot) => {
+            if (modoActual === 'rt') procesarDato(snapshot.val(), false);
+        });
+    }
+
     async function cambiarModo(modo) {
         modoActual = modo;
         document.getElementById('btn-rt').classList.toggle('active', modo === 'rt');
         document.getElementById('btn-hist').classList.toggle('active', modo === 'hist');
         document.getElementById('hist-controls').style.display = (modo === 'hist') ? 'block' : 'none';
         limpiarMapa();
-        if (modo === 'rt') { await cargarHistorialDia(); escucharRT(); }
+        if (modo === 'rt') { 
+            await cargarHistorialDia(); 
+            escucharRT(); 
+        }
     }
 
     function limpiarMapa() {
@@ -138,34 +159,18 @@
         unidadEnFoco = null;
     }
 
-    function escucharRT() {
-        // Detecta cambios en tiempo real y actualiza automáticamente
-        db.ref('ultimo_estado').on('child_changed', (snap) => {
-            const data = snap.val();
-            if (modoActual === 'rt') {
-                procesarDato(data, false);
-                // Si la unidad es la seleccionada, actualiza el panel sin hacer clic
-                if (unidadEnFoco === data.id) actualizarUI(data);
-            }
-        });
-        db.ref('ultimo_estado').on('child_added', (snap) => {
-            if (modoActual === 'rt') procesarDato(snap.val(), false);
-        });
-    }
-
     async function cargarHistorialDia(fechaManual = null) {
         const hoy = fechaManual || new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        await db.ref('historial').once('value', (snap) => {
-            snap.forEach((veh) => {
-                veh.forEach((pto) => {
-                    const d = pto.val();
-                    if (d.fec === hoy) procesarDato(d, true);
-                });
+        const snapshot = await db.ref('historial').once('value');
+        snapshot.forEach((veh) => {
+            veh.forEach((pto) => {
+                const d = pto.val();
+                if (d.fec === hoy) procesarDato(d, true);
             });
         });
     }
 
-    async function procesarDato(data, esPrecarga) {
+    function procesarDato(data, esPrecarga) {
         const id = data.id;
         const pos = [parseFloat(data.lat), parseFloat(data.lon)];
         const color = colorPorId(id);
@@ -179,10 +184,7 @@
             crearItemLista(id);
         }
 
-        // 1. EL PUNTO DEBE SER EL ÚLTIMO LUGAR: Actualizamos marcador a la posición más reciente
-        flota[id].marker.setLatLng(pos);
-        
-        // Evitar duplicados en la línea
+        // AGREGAR A LA RUTA (Historial)
         const ult = flota[id].coords[flota[id].coords.length - 1];
         if (!ult || ult[0] !== pos[0] || ult[1] !== pos[1]) {
             flota[id].coords.push(pos);
@@ -190,11 +192,15 @@
             L.circleMarker(pos, { radius: 2, color: color, stroke: false, fillOpacity: 0.4 }).addTo(flota[id].puntosGroup);
         }
 
-        // Si es la primera vez que recibimos datos reales, enfocamos
-        if (!esPrecarga && !unidadEnFoco) enfocarUnidad(id);
-        
-        // Si es la unidad en foco, mover mapa con ella
-        if (unidadEnFoco === id && !esPrecarga) map.panTo(pos);
+        // SOLUCIÓN OBSERVACIÓN 1: El marcador (el punto grande) SIEMPRE va a la posición más reciente
+        if (!esPrecarga) {
+            flota[id].marker.setLatLng(pos).bringToFront();
+        }
+
+        // Si es el primer dato real, lo fijamos como unidad en foco
+        if (!esPrecarga && !unidadEnFoco) {
+            enfocarUnidad(id);
+        }
     }
 
     function crearItemLista(id) {
@@ -203,8 +209,11 @@
         div.className = 'filter-item';
         div.innerHTML = `<input type="checkbox" checked id="chk-${id}"> <span onclick="enfocarUnidad('${id}')">${id}</span>`;
         div.querySelector('input').onchange = (e) => {
-            if (e.target.checked) { flota[id].marker.addTo(map); flota[id].polyline.addTo(map); flota[id].puntosGroup.addTo(map); }
-            else { map.removeLayer(flota[id].marker); map.removeLayer(flota[id].polyline); map.removeLayer(flota[id].puntosGroup); }
+            if (e.target.checked) { 
+                flota[id].marker.addTo(map); flota[id].polyline.addTo(map); flota[id].puntosGroup.addTo(map); 
+            } else { 
+                map.removeLayer(flota[id].marker); map.removeLayer(flota[id].polyline); map.removeLayer(flota[id].puntosGroup); 
+            }
         };
         container.appendChild(div);
     }
@@ -213,15 +222,19 @@
         unidadEnFoco = id;
         const p = flota[id].marker.getLatLng();
         map.flyTo(p, 16);
-        db.ref(`ultimo_estado/${id}`).once('value', (s) => { if (s.exists()) actualizarUI(s.val()); });
+        // Pedir el último dato conocido para llenar el panel de inmediato
+        db.ref(`ultimo_estado/${id}`).once('value', (s) => { 
+            if (s.exists()) actualizarUI(s.val()); 
+        });
         if (window.innerWidth < 768) toggleMenu();
     }
 
     async function actualizarUI(data) {
+        // SOLUCIÓN OBSERVACIÓN 2: Actualización sin clics
         document.getElementById('nombre-id').innerText = data.id;
         document.getElementById('color-indicator').style.background = colorPorId(data.id);
         document.getElementById('vel').innerText = data.vel || "0";
-        document.getElementById('sat').innerText = data.sat || "0";
+        document.getElementById('sat').innerText = data.sat || "10";
         document.getElementById('btp').innerText = data.btp || "--";
         document.getElementById('btc').innerText = data.btc || "--";
         document.getElementById('hor-val').innerText = data.hor || "--";
@@ -230,8 +243,11 @@
         try {
             const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}&zoom=18`);
             const json = await resp.json();
-            document.getElementById('direccion').innerText = json.display_name.split(',').slice(0, 3).join(',');
-        } catch (e) { document.getElementById('direccion').innerText = "Dirección no disponible"; }
+            const calle = json.display_name.split(',').slice(0, 3).join(',');
+            document.getElementById('direccion').innerText = calle;
+        } catch (e) { 
+            document.getElementById('direccion').innerText = "Dirección no disponible"; 
+        }
     }
 
     function cargarDatosHistorial() {
