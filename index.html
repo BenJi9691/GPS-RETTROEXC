@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GPS - FLOTA V3</title>
+    <title>GPS - FLOTA V2.1</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -14,18 +14,11 @@
         body { margin: 0; padding: 0; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
         
-        /* Contenedor circular para que el emoji tenga el color de la unidad */
         .vehiculo-icon-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            border: 2px solid white;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-            font-size: 18px;
-            background-color: white; /* Se cambia por JS */
+            display: flex; justify-content: center; align-items: center;
+            width: 34px; height: 34px; border-radius: 50%;
+            border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            font-size: 18px; background-color: white;
         }
 
         #menu-toggle {
@@ -33,16 +26,26 @@
             width: 45px; height: 45px; background: #e67e22;
             color: white; border-radius: 12px; display: flex;
             justify-content: center; align-items: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            z-index: 1002; cursor: pointer; font-size: 22px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1002; cursor: pointer; font-size: 22px;
         }
 
         #filter-menu {
             position: absolute; top: 70px; right: 15px;
             width: 260px; background: white; padding: 15px; border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-            z-index: 1001; display: none; max-height: 70vh; overflow-y: auto; border: 1px solid #ddd;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25); z-index: 1001; display: none;
+            max-height: 70vh; overflow-y: auto; border: 1px solid #ddd;
         }
+
+        /* --- Estilos del Modal de Exportación --- */
+        #export-modal {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 90%; max-width: 380px; background: white; z-index: 2000;
+            padding: 20px; border-radius: 20px; box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1999; }
+        .export-option { margin-bottom: 15px; }
+        .export-list { max-height: 120px; overflow-y: auto; border: 1px solid #eee; padding: 10px; border-radius: 8px; margin-top: 5px; }
+        .btn-cancel { width: 100%; background: #95a5a6; color: white; border: none; padding: 10px; border-radius: 8px; margin-top: 5px; cursor: pointer; font-weight: bold; }
 
         .section-title { font-weight: bold; margin: 15px 0 8px 0; color: #2c3e50; border-bottom: 2px solid #e67e22; font-size: 0.85em; }
         .mode-switch { display: flex; background: #f0f0f0; padding: 4px; border-radius: 8px; margin-bottom: 10px; }
@@ -57,8 +60,7 @@
         #info-panel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             width: 94%; max-width: 500px; background: white;
-            padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            z-index: 1000;
+            padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1000;
         }
         .grid-data { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
         .box { background: #f8f9fa; padding: 6px 8px; border-radius: 10px; border: 1px solid #edf0f2; }
@@ -83,13 +85,36 @@
     <div id="hist-controls" style="display:none;">
         <div class="section-title">FECHA HISTÓRICA</div>
         <input type="date" id="input-fecha" onchange="cargarDatosHistorial()">
-        <button class="btn-excel" onclick="descargarExcel()">📊 DESCARGAR EXCEL</button>
+        <button class="btn-excel" onclick="abrirModalExportar()">📊 EXPORTAR DATOS</button>
     </div>
     <div class="section-title">UNIDADES</div>
     <div class="filter-item">
         <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)"> <span style="color:#e67e22">MOSTRAR TODAS</span>
     </div>
     <div id="lista-vehiculos"></div>
+</div>
+
+<div class="modal-overlay" id="overlay"></div>
+<div id="export-modal">
+    <h3 style="margin:0 0 15px 0; color:#2c3e50; border-bottom: 2px solid #27ae60; padding-bottom:5px;">Configurar Reporte Excel</h3>
+    
+    <div class="export-option">
+        <span class="label">Rango de tiempo:</span>
+        <select id="exp-rango" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ccc;">
+            <option value="1">Solo el día seleccionado</option>
+            <option value="3">Últimos 3 días</option>
+            <option value="7">Últimos 7 días</option>
+        </select>
+    </div>
+
+    <div class="export-option">
+        <span class="label">Unidades a incluir:</span>
+        <div id="exp-unidades-list" class="export-list">
+            </div>
+    </div>
+    
+    <button class="btn-excel" onclick="procesarExportacionAvanzada()">🚀 GENERAR ARCHIVO</button>
+    <button class="btn-cancel" onclick="cerrarModalExportar()">CANCELAR</button>
 </div>
 
 <div id="info-panel">
@@ -136,6 +161,86 @@
         return colores[Math.abs(hash) % colores.length];
     }
 
+    // --- NUEVAS FUNCIONES DE EXPORTACIÓN ---
+    function abrirModalExportar() {
+        document.getElementById('overlay').style.display = 'block';
+        document.getElementById('export-modal').style.display = 'block';
+        const listContainer = document.getElementById('exp-unidades-list');
+        listContainer.innerHTML = '';
+        
+        // Obtener todas las IDs únicas que están actualmente en la flota
+        Object.keys(flota).forEach(id => {
+            listContainer.innerHTML += `
+                <div class="filter-item">
+                    <input type="checkbox" class="chk-export" value="${id}" checked> <span>${id}</span>
+                </div>`;
+        });
+    }
+
+    function cerrarModalExportar() {
+        document.getElementById('overlay').style.display = 'none';
+        document.getElementById('export-modal').style.display = 'none';
+    }
+
+    async function procesarExportacionAvanzada() {
+        const rango = parseInt(document.getElementById('exp-rango').value);
+        const checkboxes = document.querySelectorAll('.chk-export:checked');
+        const idsAExportar = Array.from(checkboxes).map(cb => cb.value);
+        
+        if (idsAExportar.length === 0) {
+            alert("Por favor selecciona al menos una unidad.");
+            return;
+        }
+
+        const dataExcel = [];
+        const snapshot = await db.ref('historial').once('value');
+        
+        // Generar lista de fechas válidas según el rango
+        const fechasValidas = [];
+        const fechaBase = document.getElementById('input-fecha').value 
+            ? new Date(document.getElementById('input-fecha').value + "T00:00:00") 
+            : new Date();
+
+        for(let i=0; i < rango; i++) {
+            let d = new Date(fechaBase);
+            d.setDate(d.getDate() - i);
+            fechasValidas.push(d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' }));
+        }
+
+        snapshot.forEach(vehiculoSnap => {
+            const idVehiculo = vehiculoSnap.key;
+            if (idsAExportar.includes(idVehiculo)) {
+                vehiculoSnap.forEach(puntoSnap => {
+                    const d = puntoSnap.val();
+                    if (fechasValidas.includes(d.fec)) {
+                        dataExcel.push({
+                            Unidad: d.id,
+                            Fecha: d.fec,
+                            Hora: d.hor,
+                            Latitud: d.lat,
+                            Longitud: d.lon,
+                            Velocidad: d.vel + " km/h",
+                            Voltaje_Carro: d.btc + "V",
+                            Voltaje_GPS: d.btp + "V"
+                        });
+                    }
+                });
+            }
+        });
+
+        if (dataExcel.length === 0) {
+            alert("No se encontraron datos para los filtros seleccionados.");
+            return;
+        }
+
+        const ws = XLSX.utils.json_to_sheet(dataExcel);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Reporte_Flota");
+        XLSX.writeFile(wb, `Reporte_BenJi_${fechasValidas[0].replace(/\//g,'-')}.xlsx`);
+        cerrarModalExportar();
+    }
+
+    // --- FUNCIONES ORIGINALES SIN CAMBIOS ---
     function escucharRT() {
         db.ref('ultimo_estado').on('child_changed', (snapshot) => {
             const data = snapshot.val();
@@ -194,7 +299,6 @@
         const color = colorPorId(id);
 
         if (!flota[id]) {
-            // ICONO CON CÍRCULO DE COLOR DETRÁS DEL EMOJI
             const vIcon = L.divIcon({
                 html: `<div class="vehiculo-icon-container" style="background-color: ${color};">🚛</div>`,
                 className: '',
@@ -219,8 +323,6 @@
         if (!ult || ult[0] !== pos[0] || ult[1] !== pos[1]) {
             flota[id].coords.push(pos);
             flota[id].polyline.setLatLngs(flota[id].coords);
-            
-            // RASTRO DE PUNTOS PEQUEÑOS
             L.circleMarker(pos, { 
                 radius: 4.5, 
                 color: color, 
@@ -291,15 +393,9 @@
         cargarHistorialDia(f.split('-').reverse().join('/'));
     }
 
+    // Se mantiene esta función por compatibilidad, pero ahora llama al modal
     function descargarExcel() {
-        const data = [];
-        Object.keys(flota).forEach(id => {
-            flota[id].coords.forEach(c => data.push({ Vehículo: id, Lat: c[0], Lon: c[1] }));
-        });
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Reporte");
-        XLSX.writeFile(wb, "GPS_BenJi_Reporte.xlsx");
+        abrirModalExportar();
     }
 
     cambiarModo('rt');
