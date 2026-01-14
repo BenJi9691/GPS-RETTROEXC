@@ -14,15 +14,18 @@
         body { margin: 0; padding: 0; background: #f4f7f6; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
         
-        /* Estilo para el Emoji del Vehículo */
-        .vehiculo-icon {
-            font-size: 24px;
-            text-align: center;
+        /* Contenedor circular para que el emoji tenga el color de la unidad */
+        .vehiculo-icon-container {
             display: flex;
             justify-content: center;
             align-items: center;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-            transition: all 0.5s ease;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            font-size: 18px;
+            background-color: white; /* Se cambia por JS */
         }
 
         #menu-toggle {
@@ -191,17 +194,17 @@
         const color = colorPorId(id);
 
         if (!flota[id]) {
-            // CREAR ICONO DE VEHÍCULO CON COLOR DINÁMICO
+            // ICONO CON CÍRCULO DE COLOR DETRÁS DEL EMOJI
             const vIcon = L.divIcon({
-                html: `<div class="vehiculo-icon" style="color: ${color}; text-shadow: 0 0 3px white;">🚛</div>`,
+                html: `<div class="vehiculo-icon-container" style="background-color: ${color};">🚛</div>`,
                 className: '',
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
+                iconSize: [34, 34],
+                iconAnchor: [17, 17]
             });
 
             flota[id] = { 
                 coords: [], 
-                marker: L.marker(pos, { icon: vIcon }).addTo(map), // Usamos marker en lugar de circleMarker para el icono
+                marker: L.marker(pos, { icon: vIcon }).addTo(map),
                 polyline: L.polyline([], {color: color, weight: 3, opacity: 0.7}).addTo(map),
                 puntosGroup: L.layerGroup().addTo(map)
             };
@@ -217,7 +220,7 @@
             flota[id].coords.push(pos);
             flota[id].polyline.setLatLngs(flota[id].coords);
             
-            // PUNTOS PEQUEÑOS PARA EL RASTRO
+            // RASTRO DE PUNTOS PEQUEÑOS
             L.circleMarker(pos, { 
                 radius: 4.5, 
                 color: color, 
