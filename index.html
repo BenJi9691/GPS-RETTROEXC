@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GPS - FLOTA V2.1</title>
+    <title>GPS - FLOTA V2.2</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -168,7 +168,6 @@
         const listContainer = document.getElementById('exp-unidades-list');
         listContainer.innerHTML = '';
         
-        // Obtener todas las IDs únicas que están actualmente en la flota
         Object.keys(flota).forEach(id => {
             listContainer.innerHTML += `
                 <div class="filter-item">
@@ -193,9 +192,9 @@
         }
 
         const dataExcel = [];
+        const registroUnicos = new Set(); // <--- SET PARA EVITAR DUPLICADOS
         const snapshot = await db.ref('historial').once('value');
         
-        // Generar lista de fechas válidas según el rango
         const fechasValidas = [];
         const fechaBase = document.getElementById('input-fecha').value 
             ? new Date(document.getElementById('input-fecha').value + "T00:00:00") 
@@ -213,16 +212,22 @@
                 vehiculoSnap.forEach(puntoSnap => {
                     const d = puntoSnap.val();
                     if (fechasValidas.includes(d.fec)) {
-                        dataExcel.push({
-                            Unidad: d.id,
-                            Fecha: d.fec,
-                            Hora: d.hor,
-                            Latitud: d.lat,
-                            Longitud: d.lon,
-                            Velocidad: d.vel + " km/h",
-                            Voltaje_Carro: d.btc + "V",
-                            Voltaje_GPS: d.btp + "V"
-                        });
+                        // Crear una clave única por punto (ID + Fecha + Hora)
+                        const claveUnica = `${d.id}-${d.fec}-${d.hor}`;
+                        
+                        if (!registroUnicos.has(claveUnica)) { // <--- SOLO AGREGAR SI NO EXISTE
+                            registroUnicos.add(claveUnica);
+                            dataExcel.push({
+                                Unidad: d.id,
+                                Fecha: d.fec,
+                                Hora: d.hor,
+                                Latitud: d.lat,
+                                Longitud: d.lon,
+                                Velocidad: d.vel + " km/h",
+                                Voltaje_Carro: d.btc + "V",
+                                Voltaje_GPS: d.btp + "V"
+                            });
+                        }
                     }
                 });
             }
@@ -240,7 +245,6 @@
         cerrarModalExportar();
     }
 
-    // --- FUNCIONES ORIGINALES SIN CAMBIOS ---
     function escucharRT() {
         db.ref('ultimo_estado').on('child_changed', (snapshot) => {
             const data = snapshot.val();
@@ -393,7 +397,6 @@
         cargarHistorialDia(f.split('-').reverse().join('/'));
     }
 
-    // Se mantiene esta función por compatibilidad, pero ahora llama al modal
     function descargarExcel() {
         abrirModalExportar();
     }
