@@ -36,7 +36,6 @@
             max-height: 70vh; overflow-y: auto; border: 1px solid #ddd;
         }
 
-        /* --- Estilos del Modal de Exportación --- */
         #export-modal {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 90%; max-width: 380px; background: white; z-index: 2000;
@@ -87,7 +86,7 @@
         <input type="date" id="input-fecha" onchange="cargarDatosHistorial()">
         <button class="btn-excel" onclick="abrirModalExportar()">📊 EXPORTAR DATOS</button>
     </div>
-    <div class="section-title">UNIDADES</div>
+    <div class="section-title">UNIDADES ACTIVAS</div>
     <div class="filter-item">
         <input type="checkbox" id="check-all" checked onclick="toggleAll(this.checked)"> <span style="color:#e67e22">MOSTRAR TODAS</span>
     </div>
@@ -97,7 +96,6 @@
 <div class="modal-overlay" id="overlay"></div>
 <div id="export-modal">
     <h3 style="margin:0 0 15px 0; color:#2c3e50; border-bottom: 2px solid #27ae60; padding-bottom:5px;">Configurar Reporte Excel</h3>
-    
     <div class="export-option">
         <span class="label">Rango de tiempo:</span>
         <select id="exp-rango" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ccc;">
@@ -106,13 +104,10 @@
             <option value="7">Últimos 7 días</option>
         </select>
     </div>
-
     <div class="export-option">
-        <span class="label">Unidades a incluir:</span>
-        <div id="exp-unidades-list" class="export-list">
-            </div>
+        <span class="label">Unidades con datos:</span>
+        <div id="exp-unidades-list" class="export-list"></div>
     </div>
-    
     <button class="btn-excel" onclick="procesarExportacionAvanzada()">🚀 GENERAR ARCHIVO</button>
     <button class="btn-cancel" onclick="cerrarModalExportar()">CANCELAR</button>
 </div>
@@ -132,7 +127,7 @@
     </div>
     <div class="address-box">
         <span class="label">Ubicación Actual</span>
-        <div id="direccion" style="font-size: 0.85em; font-weight: 600; color: #34495e;">Cargando dirección...</div>
+        <div id="direccion" style="font-size: 0.85em; font-weight: 600; color: #34495e;">Esperando datos...</div>
     </div>
 </div>
 
@@ -161,13 +156,19 @@
         return colores[Math.abs(hash) % colores.length];
     }
 
-    // --- NUEVAS FUNCIONES DE EXPORTACIÓN ---
+    function normalizarFecha(f) {
+        if(!f || !f.includes('/')) return f;
+        let p = f.split('/');
+        return p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0')+'/'+p[2];
+    }
+
     function abrirModalExportar() {
         document.getElementById('overlay').style.display = 'block';
         document.getElementById('export-modal').style.display = 'block';
         const listContainer = document.getElementById('exp-unidades-list');
         listContainer.innerHTML = '';
         
+        // Solo mostramos unidades que tienen datos cargados actualmente
         Object.keys(flota).forEach(id => {
             listContainer.innerHTML += `
                 <div class="filter-item">
@@ -183,81 +184,58 @@
 
     async function procesarExportacionAvanzada() {
         const rango = parseInt(document.getElementById('exp-rango').value);
-        const checkboxes = document.querySelectorAll('.chk-export:checked');
-        const idsAExportar = Array.from(checkboxes).map(cb => cb.value);
-        
-        if (idsAExportar.length === 0) {
-            alert("Por favor selecciona al menos una unidad.");
-            return;
-        }
+        const idsAExportar = Array.from(document.querySelectorAll('.chk-export:checked')).map(cb => cb.value);
+        if (idsAExportar.length === 0) return alert("Selecciona una unidad.");
 
         const dataExcel = [];
-        const registroUnicos = new Set(); // <--- SET PARA EVITAR DUPLICADOS
+        const registroUnicos = new Set();
         const snapshot = await db.ref('historial').once('value');
-        
-        const fechasValidas = [];
-        const fechaBase = document.getElementById('input-fecha').value 
-            ? new Date(document.getElementById('input-fecha').value + "T00:00:00") 
-            : new Date();
+        const fechaBase = document.getElementById('input-fecha').value ? new Date(document.getElementById('input-fecha').value + "T00:00:00") : new Date();
 
+        const fechasValidas = [];
         for(let i=0; i < rango; i++) {
             let d = new Date(fechaBase);
             d.setDate(d.getDate() - i);
-            fechasValidas.push(d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' }));
+            fechasValidas.push(normalizarFecha(d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' })));
         }
 
-        snapshot.forEach(vehiculoSnap => {
-            const idVehiculo = vehiculoSnap.key;
-            if (idsAExportar.includes(idVehiculo)) {
-                vehiculoSnap.forEach(puntoSnap => {
-                    const d = puntoSnap.val();
-                    if (fechasValidas.includes(d.fec)) {
-                        // Crear una clave única por punto (ID + Fecha + Hora)
-                        const claveUnica = `${d.id}-${d.fec}-${d.hor}`;
-                        
-                        if (!registroUnicos.has(claveUnica)) { // <--- SOLO AGREGAR SI NO EXISTE
-                            registroUnicos.add(claveUnica);
-                            dataExcel.push({
-                                Unidad: d.id,
-                                Fecha: d.fec,
-                                Hora: d.hor,
-                                Latitud: d.lat,
-                                Longitud: d.lon,
-                                Velocidad: d.vel + " km/h",
-                                Voltaje_Carro: d.btc + "V",
-                                Voltaje_GPS: d.btp + "V"
-                            });
+        snapshot.forEach(vSnap => {
+            if (idsAExportar.includes(vSnap.key)) {
+                vSnap.forEach(pSnap => {
+                    const d = pSnap.val();
+                    if (fechasValidas.includes(normalizarFecha(d.fec))) {
+                        const clave = `${d.id}-${d.fec}-${d.hor}`;
+                        if (!registroUnicos.has(clave)) {
+                            registroUnicos.add(clave);
+                            dataExcel.push({ Unidad: d.id, Fecha: d.fec, Hora: d.hor, Latitud: d.lat, Longitud: d.lon, Velocidad: d.vel + " km/h", Voltaje_Carro: d.btc + "V", Voltaje_GPS: d.btp + "V" });
                         }
                     }
                 });
             }
         });
 
-        if (dataExcel.length === 0) {
-            alert("No se encontraron datos para los filtros seleccionados.");
-            return;
-        }
-
+        if (dataExcel.length === 0) return alert("Sin datos para exportar.");
         const ws = XLSX.utils.json_to_sheet(dataExcel);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Reporte_Flota");
+        XLSX.utils.book_append_sheet(wb, ws, "Reporte");
         XLSX.writeFile(wb, `Reporte_BenJi_${fechasValidas[0].replace(/\//g,'-')}.xlsx`);
         cerrarModalExportar();
     }
 
     function escucharRT() {
+        db.ref('ultimo_estado').off();
         db.ref('ultimo_estado').on('child_changed', (snapshot) => {
-            const data = snapshot.val();
             if (modoActual === 'rt') {
-                procesarDato(data, false);
-                if (unidadEnFoco === data.id) {
-                    actualizarUI(data);
-                    map.panTo([parseFloat(data.lat), parseFloat(data.lon)]);
+                const data = snapshot.val();
+                const hoy = normalizarFecha(new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }));
+                if(normalizarFecha(data.fec) === hoy) {
+                    procesarDato(data, false);
+                    if (unidadEnFoco === data.id) {
+                        actualizarUI(data);
+                        map.panTo([parseFloat(data.lat), parseFloat(data.lon)]);
+                    }
                 }
             }
-        });
-        db.ref('ultimo_estado').on('child_added', (snapshot) => {
-            if (modoActual === 'rt') procesarDato(snapshot.val(), false);
         });
     }
 
@@ -285,31 +263,38 @@
     }
 
     async function cargarHistorialDia(fechaManual = null) {
-        const hoy = fechaManual || new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        let hoy = normalizarFecha(fechaManual || new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }));
         const snapshot = await db.ref('historial').once('value');
-        snapshot.forEach((veh) => {
-            veh.forEach((pto) => {
-                const d = pto.val();
-                if (d.fec === hoy) procesarDato(d, true);
+        const dataHist = snapshot.val();
+        
+        if (dataHist) {
+            Object.keys(dataHist).forEach(id => {
+                const puntos = dataHist[id];
+                Object.keys(puntos).sort().forEach(ts => {
+                    const d = puntos[ts];
+                    if (normalizarFecha(d.fec) === hoy) procesarDato(d, true);
+                });
             });
-        });
+        }
+        
         const actualSnap = await db.ref('ultimo_estado').once('value');
-        actualSnap.forEach(s => { if(flota[s.val().id]) procesarDato(s.val(), false); });
+        actualSnap.forEach(s => { 
+            const d = s.val();
+            if(flota[d.id] && normalizarFecha(d.fec) === hoy) procesarDato(d, false); 
+        });
     }
 
     function procesarDato(data, esPrecarga) {
         const id = data.id;
+        if(!id) return;
         const pos = [parseFloat(data.lat), parseFloat(data.lon)];
         const color = colorPorId(id);
 
         if (!flota[id]) {
             const vIcon = L.divIcon({
                 html: `<div class="vehiculo-icon-container" style="background-color: ${color};">🚛</div>`,
-                className: '',
-                iconSize: [34, 34],
-                iconAnchor: [17, 17]
+                className: '', iconSize: [34, 34], iconAnchor: [17, 17]
             });
-
             flota[id] = { 
                 coords: [], 
                 marker: L.marker(pos, { icon: vIcon }).addTo(map),
@@ -319,22 +304,15 @@
             crearItemLista(id);
         }
 
-        if (!esPrecarga) {
-            flota[id].marker.setLatLng(pos).setZIndexOffset(1000);
-        }
+        if (!esPrecarga) flota[id].marker.setLatLng(pos).setZIndexOffset(1000);
 
-        const ult = flota[id].coords[flota[id].coords.length - 1];
+        const h = flota[id].coords;
+        const ult = h[h.length - 1];
         if (!ult || ult[0] !== pos[0] || ult[1] !== pos[1]) {
-            flota[id].coords.push(pos);
-            flota[id].polyline.setLatLngs(flota[id].coords);
-            L.circleMarker(pos, { 
-                radius: 4.5, 
-                color: color, 
-                stroke: false, 
-                fillOpacity: 0.65 
-            }).addTo(flota[id].puntosGroup);
+            h.push(pos);
+            flota[id].polyline.setLatLngs(h);
+            L.circleMarker(pos, { radius: 4.5, color: color, stroke: false, fillOpacity: 0.65 }).addTo(flota[id].puntosGroup);
         }
-
         if (!esPrecarga && !unidadEnFoco) enfocarUnidad(id);
     }
 
@@ -343,22 +321,18 @@
         const div = document.createElement('div');
         div.className = 'filter-item';
         div.innerHTML = `<input type="checkbox" checked class="chk-unidad" id="chk-${id}"> <span onclick="enfocarUnidad('${id}')">${id}</span>`;
-        
         div.querySelector('input').onchange = (e) => {
-            const visible = e.target.checked;
-            if (visible) { 
-                flota[id].marker.addTo(map); flota[id].polyline.addTo(map); flota[id].puntosGroup.addTo(map); 
-            } else { 
-                map.removeLayer(flota[id].marker); map.removeLayer(flota[id].polyline); map.removeLayer(flota[id].puntosGroup); 
-            }
+            const vis = e.target.checked;
+            if (vis) { flota[id].marker.addTo(map); flota[id].polyline.addTo(map); flota[id].puntosGroup.addTo(map); }
+            else { map.removeLayer(flota[id].marker); map.removeLayer(flota[id].polyline); map.removeLayer(flota[id].puntosGroup); }
         };
         container.appendChild(div);
     }
 
     async function enfocarUnidad(id) {
+        if(!flota[id]) return;
         unidadEnFoco = id;
-        const p = flota[id].marker.getLatLng();
-        map.flyTo(p, 16);
+        map.flyTo(flota[id].marker.getLatLng(), 16);
         db.ref(`ultimo_estado/${id}`).once('value', (s) => { if (s.exists()) actualizarUI(s.val()); });
         if (window.innerWidth < 768) toggleMenu();
     }
@@ -372,7 +346,6 @@
         document.getElementById('btp').innerText = data.btp || "--";
         document.getElementById('btc').innerText = data.btc || "--";
         document.getElementById('puntos').innerText = flota[data.id] ? flota[data.id].coords.length : "0";
-        
         try {
             const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}&zoom=18`);
             const json = await resp.json();
@@ -381,13 +354,7 @@
     }
 
     function toggleAll(c) {
-        const checkboxes = document.querySelectorAll('.chk-unidad');
-        checkboxes.forEach(cb => {
-            if (cb.checked !== c) {
-                cb.checked = c;
-                cb.dispatchEvent(new Event('change'));
-            }
-        });
+        document.querySelectorAll('.chk-unidad').forEach(cb => { if (cb.checked !== c) { cb.checked = c; cb.dispatchEvent(new Event('change')); } });
     }
 
     function cargarDatosHistorial() {
@@ -395,10 +362,6 @@
         if (!f) return;
         limpiarMapa();
         cargarHistorialDia(f.split('-').reverse().join('/'));
-    }
-
-    function descargarExcel() {
-        abrirModalExportar();
     }
 
     cambiarModo('rt');
