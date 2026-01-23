@@ -149,11 +149,15 @@
         m.style.display = (m.style.display === 'block') ? 'none' : 'block';
     }
 
+    // GENERADOR DE COLORES MEJORADO PARA MÁXIMO CONTRASTE
     function colorPorId(id) {
-        const colores = ['#e67e22', '#9b59b6', '#2ecc71', '#3498db', '#f1c40f', '#e74c3c'];
         let hash = 0;
-        for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
-        return colores[Math.abs(hash) % colores.length];
+        for (let i = 0; i < id.length; i++) {
+            hash = id.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        // Usamos el número áureo para dispersar los colores en el círculo cromático
+        const hue = Math.abs(hash * 137.508) % 360; 
+        return `hsl(${hue}, 85%, 45%)`;
     }
 
     function normalizarFecha(f) {
@@ -224,7 +228,6 @@
         const ref = db.ref('ultimo_estado');
         ref.off();
         
-        // Función para procesar la llegada de datos
         const handler = (snapshot) => {
             if (modoActual === 'rt') {
                 const data = snapshot.val();
@@ -239,9 +242,8 @@
             }
         };
 
-        // Escucha cambios Y nuevas unidades que aparezcan en el nodo
         ref.on('child_changed', handler);
-        ref.on('child_added', handler);
+        ref.on('child_added', handler); 
     }
 
     async function cambiarModo(modo) {
@@ -297,13 +299,13 @@
 
         if (!flota[id]) {
             const vIcon = L.divIcon({
-                html: `<div class="vehiculo-icon-container" style="background-color: ${color};">🚛</div>`,
+                html: `<div class="vehiculo-icon-container" style="background-color: ${color}; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">🚛</div>`,
                 className: '', iconSize: [34, 34], iconAnchor: [17, 17]
             });
             flota[id] = { 
                 coords: [], 
                 marker: L.marker(pos, { icon: vIcon }).addTo(map),
-                polyline: L.polyline([], {color: color, weight: 3, opacity: 0.7}).addTo(map),
+                polyline: L.polyline([], {color: color, weight: 4, opacity: 0.8}).addTo(map),
                 puntosGroup: L.layerGroup().addTo(map)
             };
             crearItemLista(id);
@@ -316,18 +318,22 @@
         if (!ult || ult[0] !== pos[0] || ult[1] !== pos[1]) {
             h.push(pos);
             flota[id].polyline.setLatLngs(h);
-            L.circleMarker(pos, { radius: 4.5, color: color, stroke: false, fillOpacity: 0.65 }).addTo(flota[id].puntosGroup);
+            L.circleMarker(pos, { radius: 5, color: color, stroke: true, weight: 1, color: 'white', fillColor: color, fillOpacity: 0.9 }).addTo(flota[id].puntosGroup);
         }
         if (!esPrecarga && !unidadEnFoco) enfocarUnidad(id);
     }
 
     function crearItemLista(id) {
-        if(document.getElementById(`chk-${id}`)) return; // Evita duplicados en la lista
+        if(document.getElementById(`chk-${id}`)) return;
         const container = document.getElementById('lista-vehiculos');
         const div = document.createElement('div');
         div.className = 'filter-item';
         div.id = `item-${id}`;
-        div.innerHTML = `<input type="checkbox" checked class="chk-unidad" id="chk-${id}"> <span onclick="enfocarUnidad('${id}')">${id}</span>`;
+        const color = colorPorId(id);
+        div.innerHTML = `
+            <input type="checkbox" checked class="chk-unidad" id="chk-${id}"> 
+            <span style="color: ${color}; border-left: 5px solid ${color}; padding-left: 10px; font-weight: bold;" onclick="enfocarUnidad('${id}')">${id}</span>
+        `;
         div.querySelector('input').onchange = (e) => {
             const vis = e.target.checked;
             if (vis) { flota[id].marker.addTo(map); flota[id].polyline.addTo(map); flota[id].puntosGroup.addTo(map); }
