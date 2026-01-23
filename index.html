@@ -167,8 +167,6 @@
         document.getElementById('export-modal').style.display = 'block';
         const listContainer = document.getElementById('exp-unidades-list');
         listContainer.innerHTML = '';
-        
-        // Solo mostramos unidades que tienen datos cargados actualmente
         Object.keys(flota).forEach(id => {
             listContainer.innerHTML += `
                 <div class="filter-item">
@@ -223,8 +221,11 @@
     }
 
     function escucharRT() {
-        db.ref('ultimo_estado').off();
-        db.ref('ultimo_estado').on('child_changed', (snapshot) => {
+        const ref = db.ref('ultimo_estado');
+        ref.off();
+        
+        // Función para procesar la llegada de datos
+        const handler = (snapshot) => {
             if (modoActual === 'rt') {
                 const data = snapshot.val();
                 const hoy = normalizarFecha(new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }));
@@ -236,7 +237,11 @@
                     }
                 }
             }
-        });
+        };
+
+        // Escucha cambios Y nuevas unidades que aparezcan en el nodo
+        ref.on('child_changed', handler);
+        ref.on('child_added', handler);
     }
 
     async function cambiarModo(modo) {
@@ -253,9 +258,9 @@
 
     function limpiarMapa() {
         Object.keys(flota).forEach(id => {
-            map.removeLayer(flota[id].marker);
-            map.removeLayer(flota[id].polyline);
-            map.removeLayer(flota[id].puntosGroup);
+            if(flota[id].marker) map.removeLayer(flota[id].marker);
+            if(flota[id].polyline) map.removeLayer(flota[id].polyline);
+            if(flota[id].puntosGroup) map.removeLayer(flota[id].puntosGroup);
         });
         flota = {};
         document.getElementById('lista-vehiculos').innerHTML = '';
@@ -280,7 +285,7 @@
         const actualSnap = await db.ref('ultimo_estado').once('value');
         actualSnap.forEach(s => { 
             const d = s.val();
-            if(flota[d.id] && normalizarFecha(d.fec) === hoy) procesarDato(d, false); 
+            if(normalizarFecha(d.fec) === hoy) procesarDato(d, false); 
         });
     }
 
@@ -317,9 +322,11 @@
     }
 
     function crearItemLista(id) {
+        if(document.getElementById(`chk-${id}`)) return; // Evita duplicados en la lista
         const container = document.getElementById('lista-vehiculos');
         const div = document.createElement('div');
         div.className = 'filter-item';
+        div.id = `item-${id}`;
         div.innerHTML = `<input type="checkbox" checked class="chk-unidad" id="chk-${id}"> <span onclick="enfocarUnidad('${id}')">${id}</span>`;
         div.querySelector('input').onchange = (e) => {
             const vis = e.target.checked;
