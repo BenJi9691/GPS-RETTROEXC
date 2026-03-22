@@ -40,7 +40,6 @@ client.on('message', (topic, message) => {
         const ts = Date.now();
 
         // --- CORRECCIÓN DE FECHA (NORMALIZACIÓN) ---
-        // Esto convierte 21/1/2026 en 21/01/2026 para que la web lo reconozca
         if (data.fec && data.fec.includes('/')) {
             let partes = data.fec.split('/');
             if (partes.length === 3) {
@@ -62,10 +61,24 @@ client.on('message', (topic, message) => {
     }
 });
 
-// 3. MANTENER RENDER ACTIVO
-const server = http.createServer((req, res) => {
-    res.writeHead(200, {'Content-Type': 'text/plain'});
-    res.end('Servidor GPS BenJi Activo\n');
+// 3. MANTENER RENDER ACTIVO Y RUTA DE LIMPIEZA
+const server = http.createServer(async (req, res) => {
+    // NUEVA RUTA DE LIMPIEZA: Detecta si la URL termina en /limpiar-historial-2468
+    if (req.url === '/limpiar-historial-2468') {
+        try {
+            await db.ref('historial').remove();
+            console.log("🧹 MANTENIMIENTO: Historial borrado por comando web.");
+            res.writeHead(200, {'Content-Type': 'text/plain'});
+            res.end('✅ Historial de Firebase eliminado correctamente.\n');
+        } catch (error) {
+            res.writeHead(500, {'Content-Type': 'text/plain'});
+            res.end('❌ Error al limpiar base de datos.\n');
+        }
+    } else {
+        // Respuesta normal para mantener Render despierto
+        res.writeHead(200, {'Content-Type': 'text/plain'});
+        res.end('Servidor GPS BenJi Activo\n');
+    }
 });
 
 const WEB_PORT = process.env.PORT || 10000;
